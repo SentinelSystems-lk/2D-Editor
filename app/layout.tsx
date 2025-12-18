@@ -5,8 +5,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Presentation Editor',
-  description: 'Create presentations with Next.js and Konva',
+  title: 'Aadhya 2D Editor',
+  description: 'Create 2D components as you like',
 };
 
 export default function RootLayout({

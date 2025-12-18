@@ -33,8 +33,7 @@ function Toolbar() {
         padding: "0 16px",
       }}
     >
-      <span>rectangle </span>
-      <span>circle</span>
+      
       <button onClick={handleExport}>
         Download
       </button>
