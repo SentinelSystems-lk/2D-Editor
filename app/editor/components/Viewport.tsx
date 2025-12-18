@@ -26,17 +26,13 @@ export default function Canvas() {
   return (
     <div
       ref={containerRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        background: "#1a1a1a",
-      }}
+      className="viewportContainer"
     >
       {size.width > 0 && size.height > 0 && (
         <Stage
           width={size.width}
           height={size.height}
-          style={{ backgroundColor: "white" }}
+          className="canvas"
         >
           <Layer>
             <Rect
