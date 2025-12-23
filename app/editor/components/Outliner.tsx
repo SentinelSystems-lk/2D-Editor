@@ -46,7 +46,7 @@ function ShapeDropdown() {
 }
 
 function Outliner() {
-  const shapes = useCanvasStore((state) => state.shapes);
+  
 
   return (
     <div className="panel p-4 bg-gray-50 border-r" style={{ width: "250px", height: "100%" }}>
@@ -54,48 +54,7 @@ function Outliner() {
       
       <ShapeDropdown />
       
-      <div className="mt-6">
-        <h3 className="text-sm font-medium mb-2 flex items-center justify-between">
-          <span>Layers</span>
-          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-            {shapes.length}
-          </span>
-        </h3>
-        
-        <div className="space-y-1 max-h-96 overflow-y-auto">
-          {shapes.length === 0 ? (
-            <p className="text-xs text-gray-400 italic py-2">
-              No shapes yet. Draw one!
-            </p>
-          ) : (
-            shapes.map((shape, index) => (
-              <div 
-                key={shape.id} 
-                className="text-xs p-2 bg-white border rounded hover:bg-blue-50 cursor-pointer transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium capitalize">
-                    {shape.type}
-                  </span>
-                  <span className="text-gray-400">
-                    #{shapes.length - index}
-                  </span>
-                </div>
-                {shape.type === 'rectangle' && (
-                  <div className="text-gray-500 mt-1">
-                    {Math.round(shape.width)} × {Math.round(shape.height)}
-                  </div>
-                )}
-                {shape.type === 'circle' && (
-                  <div className="text-gray-500 mt-1">
-                    r: {Math.round(shape.radius)}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+     
     </div>
   );
 }
