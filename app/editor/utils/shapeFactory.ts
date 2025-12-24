@@ -1,4 +1,4 @@
- import type { Shape, ShapeType, RectangleShape, CircleShape } from '../store/editorStore';
+import type { Shape, ShapeType, RectangleShape, CircleShape } from '../store/editorStore';
 
 /**
  * Creates a new shape based on the type
@@ -58,6 +58,12 @@ export const updateShape = (
         radius,
       } as CircleShape;
     }
+    
+    case 'image':
+    case 'glb':
+      // Image and GLB shapes don't support drawing mode
+      // They are created with fixed dimensions on drop
+      return shape;
       
     default:
       return shape;

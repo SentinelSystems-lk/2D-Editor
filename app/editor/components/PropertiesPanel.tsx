@@ -5,6 +5,7 @@ import type { GLBShape } from "../store/editorStore";
 import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { SketchPicker, ColorResult } from "react-color";
 import { color } from "three/tsl";
+import "./PropertiesPanel.css";
 
 function PropertiesPanel() {
   const { shapes, selectedShapeId, updateShape, deleteShape } =
@@ -14,6 +15,23 @@ function PropertiesPanel() {
   );
 
   const selectedShape = shapes.find((s) => s.id === selectedShapeId);
+
+  const [showFillPicker, setShowFillPicker] = useState(false);
+  const fillPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close the picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        fillPickerRef.current &&
+        !fillPickerRef.current.contains(e.target as Node)
+      ) {
+        setShowFillPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (!selectedShape) {
     return (
@@ -42,17 +60,6 @@ function PropertiesPanel() {
     });
   };
 
-  const handleGLBLoad = (id: string, canvas: HTMLCanvasElement) => {
-    setLoadedGLBs((prev) => {
-      if (prev.has(id)) return prev; // 🚫 already loaded → do nothing
-
-      const next = new Map(prev);
-      next.set(id, canvas);
-      console.log("glb loaded:", id);
-      return next;
-    });
-  };
-
   const handleStokeWidth = (value: number) => {
     updateShape(selectedShape.id, { strokeWidth: value });
   };
@@ -71,33 +78,32 @@ function PropertiesPanel() {
   return (
     <div
       className="panel p-4 bg-gray-50 border-l"
-      style={{ width: "280px", height: "100%", overflowY: "auto" }}
+      style={{ width: "300px", height: "100%", overflowY: "auto" }}
     >
       <div className="panel-title text-lg font-bold mb-4">⚙️ Properties</div>
 
       {/* Shape Type */}
       <div className="mb-4 p-3 bg-blue-50 rounded">
-        <div className="text-sm font-semibold text-blue-800 capitalize">
-          {selectedShape.type}
+        <div className="titles ">
+          {selectedShape.type.charAt(0).toUpperCase() +
+            selectedShape.type.slice(1)}
         </div>
-        <div className="text-xs text-gray-500 mt-1">
-          ID: {selectedShape.id.slice(-6)}
-        </div>
+        <div className="idname">ID: {selectedShape.id.slice(-6)}</div>
       </div>
 
       {/* Position */}
-      <div className="mb-4">
-        <h3 className="text-sm font-semibold mb-2">Position</h3>
-        <div className="space-y-2">
+      <div>
+        <h3 className="titles">Position</h3>
+        <div className="positionxy">
           <div>
-            <label className="text-xs text-gray-600">X:</label>
+            <label>X:</label>
             <input
               type="number"
               value={Math.round(selectedShape.x)}
               onChange={(e) =>
                 handleInputChange("x", parseFloat(e.target.value))
               }
-              className="w-full px-2 py-1 text-sm border rounded"
+              className="input-box"
             />
           </div>
           <div>
@@ -108,7 +114,7 @@ function PropertiesPanel() {
               onChange={(e) =>
                 handleInputChange("y", parseFloat(e.target.value))
               }
-              className="w-full px-2 py-1 text-sm border rounded"
+              className="input-box"
             />
           </div>
         </div>
@@ -117,8 +123,8 @@ function PropertiesPanel() {
       {/* Size - Rectangle */}
       {selectedShape.type === "rectangle" && (
         <div className="mb-4">
-          <h3 className="text-sm font-semibold mb-2">Size</h3>
-          <div className="space-y-2">
+          <h3 className="titles">Size</h3>
+          <div className="positionxy">
             <div>
               <label className="text-xs text-gray-600">Width:</label>
               <input
@@ -129,7 +135,7 @@ function PropertiesPanel() {
                 onChange={(e) =>
                   handleInputChange("width", parseFloat(e.target.value))
                 }
-                className="w-full px-2 py-1 text-sm border rounded"
+                className="input-box"
               />
             </div>
             <div>
@@ -142,7 +148,7 @@ function PropertiesPanel() {
                 onChange={(e) =>
                   handleInputChange("height", parseFloat(e.target.value))
                 }
-                className="w-full px-2 py-1 text-sm border rounded"
+                className="input-box"
               />
             </div>
           </div>
@@ -152,9 +158,9 @@ function PropertiesPanel() {
       {/* Size - Circle */}
       {selectedShape.type === "circle" && (
         <div className="mb-4">
-          <h3 className="text-sm font-semibold mb-2">Size</h3>
+          <h3 className="titles">Size</h3>
           <div>
-            <label className="text-xs text-gray-600">Radius:</label>
+            <label className="subtitles">Radius:</label>
             <input
               type="number"
               value={Math.round(
@@ -163,7 +169,7 @@ function PropertiesPanel() {
               onChange={(e) =>
                 handleInputChange("radius", parseFloat(e.target.value))
               }
-              className="w-full px-2 py-1 text-sm border rounded"
+              className="input-box"
             />
           </div>
         </div>
@@ -172,10 +178,10 @@ function PropertiesPanel() {
       {/* Size - Image/GLB */}
       {(selectedShape.type === "image" || selectedShape.type === "glb") && (
         <div className="mb-4">
-          <h3 className="text-sm font-semibold mb-2">Size</h3>
-          <div className="space-y-2">
+          <h3 className="titles">Size</h3>
+          <div className="positionxy">
             <div>
-              <label className="text-xs text-gray-600">Width:</label>
+              <label>Width:</label>
               <input
                 type="number"
                 value={Math.round(
@@ -184,11 +190,11 @@ function PropertiesPanel() {
                 onChange={(e) =>
                   handleInputChange("width", parseFloat(e.target.value))
                 }
-                className="w-full px-2 py-1 text-sm border rounded"
+                className="input-box"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-600">Height:</label>
+              <label>Height:</label>
               <input
                 type="number"
                 value={Math.round(
@@ -197,7 +203,7 @@ function PropertiesPanel() {
                 onChange={(e) =>
                   handleInputChange("height", parseFloat(e.target.value))
                 }
-                className="w-full px-2 py-1 text-sm border rounded"
+                className="input-box"
               />
             </div>
           </div>
@@ -206,7 +212,7 @@ function PropertiesPanel() {
 
       {/* Rotation */}
       <div className="mb-4">
-        <h3 className="text-sm font-semibold mb-2">Rotation</h3>
+        <h3 className="titles">Rotation</h3>
         <div className="flex items-center gap-2">
           <input
             type="range"
@@ -216,7 +222,7 @@ function PropertiesPanel() {
             onChange={(e) =>
               handleInputChange("rotation", parseFloat(e.target.value))
             }
-            className="flex-1"
+            className="input-slider"
           />
           <input
             type="number"
@@ -224,18 +230,18 @@ function PropertiesPanel() {
             onChange={(e) =>
               handleInputChange("rotation", parseFloat(e.target.value))
             }
-            className="w-16 px-2 py-1 text-sm border rounded"
+            className="input-box"
           />
-          <span className="text-xs text-gray-600">°</span>
+          <span className="input-box">°</span>
         </div>
       </div>
 
       {/* Scale */}
       <div className="mb-4">
-        <h3 className="text-sm font-semibold mb-2">Scale</h3>
+        <h3 className="titles">Scale</h3>
         <div className="space-y-2">
           <div>
-            <label className="text-xs text-gray-600">Scale X:</label>
+            <label className="subtitles">Scale X:</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -246,15 +252,15 @@ function PropertiesPanel() {
                 onChange={(e) =>
                   handleInputChange("scaleX", parseFloat(e.target.value))
                 }
-                className="flex-1"
+                className="input-slider"
               />
-              <span className="text-xs text-gray-600 w-12">
+              {/* <span className="text-xs text-gray-600 w-12">
                 {((selectedShape.scaleX || 1) * 100).toFixed(0)}%
-              </span>
+              </span> */}
             </div>
           </div>
           <div>
-            <label className="text-xs text-gray-600">Scale Y:</label>
+            <label className="subtitles">Scale Y:</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -265,51 +271,73 @@ function PropertiesPanel() {
                 onChange={(e) =>
                   handleInputChange("scaleY", parseFloat(e.target.value))
                 }
-                className="flex-1"
+                className="input-slider"
               />
-              <span className="text-xs text-gray-600 w-12">
+              {/* <span className="text-xs text-gray-600 w-12">
                 {((selectedShape.scaleY || 1) * 100).toFixed(0)}%
-              </span>
+              </span> */}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-6 pt-4 border-t">
-        <button
-          onClick={handleDelete}
-          className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-medium transition-colors"
-        >
-          🗑️ Delete Shape
-        </button>
-      </div>
-
       <div className="mb-4">
-        <h3 className="text-sm font-semibold mb-2">Fill Color</h3>
+        <h3 className="titles">Fill Color</h3>
 
-        <SketchPicker
-          color={{
-            r: hexToRgb(selectedShape.fill || "#3b82f6").r,
-            g: hexToRgb(selectedShape.fill || "#3b82f6").g,
-            b: hexToRgb(selectedShape.fill || "#3b82f6").b,
-            a: selectedShape.opacity ?? 1,
+        {/* Color Button */}
+        <button
+          onClick={() => setShowFillPicker(!showFillPicker)}
+          style={{
+            backgroundColor: selectedShape.fill || "#3b82f6",
           }}
-          onChange={handleFillColorChange}
+          className="colorbtn"
         />
+
+        {/* Color Picker */}
+        {showFillPicker && (
+          <div
+            ref={fillPickerRef}
+            style={{
+              position: "absolute",
+              zIndex: 100,
+              marginTop: "8px",
+            }}
+          >
+            <SketchPicker
+              width="11vw"
+              color={{
+                r: hexToRgb(selectedShape.fill || "#3b82f6").r,
+                g: hexToRgb(selectedShape.fill || "#3b82f6").g,
+                b: hexToRgb(selectedShape.fill || "#3b82f6").b,
+                a: selectedShape.opacity ?? 1,
+              }}
+              onChange={handleFillColorChange}
+            />
+          </div>
+        )}
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">Stoke</h3>
+        <h3 className="titles">Stoke</h3>
         <div>
-          <label className="text-xs text-gray-600">Width:</label>
+          <label className="subtitles">Width:</label>
           <input
             type="number"
             value={Math.round(selectedShape.strokeWidth || 0)}
             onChange={(e) => handleStokeWidth(parseFloat(e.target.value))}
-            className="w-full px-2 py-1 text-sm border rounded"
+            className="input-box"
           />
         </div>
+      </div>
+
+      {/* Actions */}
+      <div className="deletecon">
+        <button
+          onClick={handleDelete}
+          className="deletebtn"
+        >
+        Delete
+        </button>
       </div>
 
       {/* <div style={{  width: "50px", height: "50px"}}>

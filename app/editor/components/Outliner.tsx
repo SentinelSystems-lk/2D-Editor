@@ -50,7 +50,7 @@ function Outliner() {
 
   return (
     <div className="panel p-4 bg-gray-50 border-r" style={{ width: "250px", height: "100%" }}>
-      <h2 className="text-lg font-bold mb-4">Tools</h2>
+      <h2 className="panel-title text-lg font-bold mb-4">🛠️ Tools</h2>
       
       <ShapeDropdown />
       

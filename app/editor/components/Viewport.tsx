@@ -21,7 +21,6 @@ type AlignmentLine = {
   orientation: "vertical" | "horizontal";
 };
 
-
 export default function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -29,9 +28,12 @@ export default function Canvas() {
   const [loadedImages, setLoadedImages] = useState<
     Map<string, HTMLImageElement>
   >(new Map());
-  const [loadedGLBs, setLoadedGLBs] = useState<Map<string, HTMLCanvasElement>>(
-    new Map()
-  );
+  const [glbCanvases, setGlbCanvases] = useState<
+    Map<string, HTMLCanvasElement>
+  >(new Map());
+  const [glbInteractionModes, setGlbInteractionModes] = useState<
+    Map<string, "konva" | "threejs">
+  >(new Map());
   const shapeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const [alignmentLines, setAlignmentLines] = useState<AlignmentLine[]>([]);
@@ -87,12 +89,23 @@ export default function Canvas() {
     });
   }, [shapes, loadedImages]);
 
-  // Update transformer when selection changes
   useEffect(() => {
     const transformer = transformerRef.current;
     if (!transformer) return;
 
     if (selectedShapeId) {
+      const shape = shapes.find((s) => s.id === selectedShapeId);
+
+      // Don't attach transformer to GLB shapes in threejs mode
+      if (
+        shape?.type === "glb" &&
+        glbInteractionModes.get(selectedShapeId) === "threejs"
+      ) {
+        transformer.nodes([]);
+        transformer.getLayer()?.batchDraw();
+        return;
+      }
+
       const node = shapeRefs.current.get(selectedShapeId);
       if (node) {
         transformer.nodes([node]);
@@ -102,7 +115,7 @@ export default function Canvas() {
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
     }
-  }, [selectedShapeId]);
+  }, [selectedShapeId, shapes, glbInteractionModes]);
 
   const getShapeBounds = (shape: Shape) => {
     const scaleX = shape.scaleX || 1;
@@ -148,41 +161,36 @@ export default function Canvas() {
     const lines: AlignmentLine[] = [];
     const draggedBounds = getShapeBounds(draggedShape);
 
+    const canvasCenterX = size.width / 2;
+    const canvasCenterY = size.height / 2;
+
+    lines.push({
+      points: [canvasCenterX, 0, canvasCenterX, size.height],
+      orientation: "vertical",
+    });
+
+    lines.push({
+      points: [0, canvasCenterY, size.width, canvasCenterY],
+      orientation: "horizontal",
+    });
+
     shapes.forEach((shape) => {
       if (shape.id === draggedShape.id) return;
 
       const bounds = getShapeBounds(shape);
 
-      //canvas center
-      const canvasCenterX = size.width / 2;
-      const canvasCenterY = size.height / 2;
-
-      lines.push({
-        points: [canvasCenterX, 0, canvasCenterX, size.height],
-        orientation: "vertical",
-      })
-
-      lines.push({
-       points: [0, canvasCenterY, size.width, canvasCenterY],
-      orientation: "horizontal",
-      })
-
-      // Vertical alignment (X axis)
-      // Left edges
       if (Math.abs(draggedBounds.x - bounds.x) < SNAP_THRESHOLD) {
         lines.push({
           points: [bounds.x, 0, bounds.x, size.height],
           orientation: "vertical",
         });
       }
-      // Center alignment
       if (Math.abs(draggedBounds.centerX - bounds.centerX) < SNAP_THRESHOLD) {
         lines.push({
           points: [bounds.centerX, 0, bounds.centerX, size.height],
           orientation: "vertical",
         });
       }
-      // Right edges
       if (
         Math.abs(
           draggedBounds.x + draggedBounds.width - (bounds.x + bounds.width)
@@ -195,22 +203,18 @@ export default function Canvas() {
         });
       }
 
-      // Horizontal alignment (Y axis)
-      // Top edges
       if (Math.abs(draggedBounds.y - bounds.y) < SNAP_THRESHOLD) {
         lines.push({
           points: [0, bounds.y, size.width, bounds.y],
           orientation: "horizontal",
         });
       }
-      // Center alignment
       if (Math.abs(draggedBounds.centerY - bounds.centerY) < SNAP_THRESHOLD) {
         lines.push({
           points: [0, bounds.centerY, size.width, bounds.centerY],
           orientation: "horizontal",
         });
       }
-      // Bottom edges
       if (
         Math.abs(
           draggedBounds.y + draggedBounds.height - (bounds.y + bounds.height)
@@ -228,7 +232,6 @@ export default function Canvas() {
   };
 
   function handleMouseDown(e: any) {
-    // Check if clicking on transformer or its anchors
     const clickedOnTransformer =
       e.target.getParent()?.className === "Transformer";
     if (clickedOnTransformer) {
@@ -243,7 +246,6 @@ export default function Canvas() {
       return;
     }
 
-    // Clicking on empty space - deselect and start drawing
     setSelectedShapeId(null);
 
     const stage = stageRef.current;
@@ -280,7 +282,6 @@ export default function Canvas() {
 
   function handleMouseUp() {
     if (currentShape) {
-      // Validate shape before adding
       let isValid = false;
 
       if (currentShape.type === "rectangle") {
@@ -298,17 +299,6 @@ export default function Canvas() {
     clearCurrentShape();
   }
 
-  const handleGLBLoad = (id: string, canvas: HTMLCanvasElement) => {
-    setLoadedGLBs((prev) => {
-      if (prev.has(id)) return prev; // 🚫 already loaded → do nothing
-
-      const next = new Map(prev);
-      next.set(id, canvas);
-      console.log("glb loaded:", id);
-      return next;
-    });
-  };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (!stageRef.current) return;
@@ -321,7 +311,11 @@ export default function Canvas() {
     if (files.length > 0) {
       const file = files[0];
 
-      if (file.name.endsWith(".glb") || file.name.endsWith(".gltf")) {
+      // Handle GLB files
+      if (
+        file.name.toLowerCase().endsWith(".glb") ||
+        file.name.toLowerCase().endsWith(".gltf")
+      ) {
         const reader = new FileReader();
         reader.onload = () => {
           const glbShape: GLBShape = {
@@ -330,32 +324,36 @@ export default function Canvas() {
             x: pos.x,
             y: pos.y,
             src: reader.result as string,
-            width: 300,
-            height: 300,
+            width: 200,
+            height: 200,
           };
           addShape(glbShape);
           setSelectedShapeId(glbShape.id);
+          setGlbInteractionModes((prev) =>
+            new Map(prev).set(glbShape.id, "konva")
+          );
         };
         reader.readAsDataURL(file);
         return;
       }
 
-      if (!file.type.startsWith("image/")) return;
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        const imageShape: ImageShape = {
-          id: Date.now().toString(),
-          type: "image",
-          x: pos.x,
-          y: pos.y,
-          src: reader.result as string,
+      // Handle image files
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const imageShape: ImageShape = {
+            id: Date.now().toString(),
+            type: "image",
+            x: pos.x,
+            y: pos.y,
+            src: reader.result as string,
+          };
+          addShape(imageShape);
+          setSelectedShapeId(imageShape.id);
         };
-        addShape(imageShape);
-        setSelectedShapeId(imageShape.id);
-      };
-      reader.readAsDataURL(file);
-      return;
+        reader.readAsDataURL(file);
+        return;
+      }
     }
 
     const url = e.dataTransfer.getData("text/uri-list");
@@ -412,6 +410,16 @@ export default function Canvas() {
     setAlignmentLines([]);
   };
 
+  const handleGLBModeToggle = (shapeId: string) => {
+    setGlbInteractionModes((prev) => {
+      const newModes = new Map(prev);
+      const currentMode = newModes.get(shapeId) || "konva";
+      const newMode = currentMode === "konva" ? "threejs" : "konva";
+      newModes.set(shapeId, newMode);
+      return newModes;
+    });
+  };
+
   const renderShape = (shape: Shape, draggable = false) => {
     const commonProps = {
       id: shape.id,
@@ -420,7 +428,12 @@ export default function Canvas() {
       rotation: shape.rotation || 0,
       scaleX: shape.scaleX || 1,
       scaleY: shape.scaleY || 1,
-      draggable: draggable,
+      draggable:
+        draggable &&
+        !(
+          shape.type === "glb" &&
+          glbInteractionModes.get(shape.id) === "threejs"
+        ),
       fill: shape.fill || "#3b82f6",
       stroke: shape.stroke || "#000000ff",
       strokeWidth: shape.strokeWidth || 0,
@@ -463,41 +476,23 @@ export default function Canvas() {
     }
 
     if (shape.type === "glb") {
-      const canvas = loadedGLBs.get(shape.id);
-
-      // Show placeholder while loading
-      if (!canvas) {
-        return (
-          <Rect
-            {...commonProps}
-            width={shape.width}
-            height={shape.height}
-            fill="#f0f0f0"
-            stroke="#ccc"
-            strokeWidth={2}
-          />
-        );
-      }
+      const canvas = glbCanvases.get(shape.id);
 
       return (
-        <KonvaImage
+        <Rect
           {...commonProps}
-          image={canvas}
           width={shape.width}
           height={shape.height}
+          fill="transparent"
+          stroke={selectedShapeId === shape.id ? "#0066ff" : "transparent"}
+          strokeWidth={1}
+          dash={selectedShapeId === shape.id ? [4, 4] : undefined}
         />
       );
     }
 
     return null;
   };
-
-  // Get selected GLB shape
-  const selectedGLBShape = selectedShapeId
-    ? (shapes.find((s) => s.id === selectedShapeId && s.type === "glb") as
-        | GLBShape
-        | undefined)
-    : undefined;
 
   return (
     <div
@@ -507,47 +502,51 @@ export default function Canvas() {
       onDragOver={handleDragOver}
       style={{ position: "relative", width: "100%", height: "100%" }}
     >
-      {/* Hidden GLB renderers for non-selected GLB shapes */}
-      <div style={{ position: "absolute", left: "-9999px" }}>
-        {shapes
-          .filter(
-            (s): s is GLBShape => s.type === "glb" && s.id !== selectedShapeId
-          )
-          .map((shape) => (
-            <GLBRenderer
-              key={shape.id}
-              src={shape.src}
-              width={shape.width}
-              height={shape.height}
-              isSelected={false}
-              onLoad={(canvas) => handleGLBLoad(shape.id, canvas)}
-            />
-          ))}
-      </div>
+      {/* Render GLB renderers in overlay */}
+      {shapes
+        .filter((s): s is GLBShape => s.type === "glb")
+        .map((shape) => {
+          const scaleX = shape.scaleX || 1;
+          const scaleY = shape.scaleY || 1;
+          const width = shape.width * scaleX;
+          const height = shape.height * scaleY;
+          const mode = glbInteractionModes.get(shape.id) || "konva";
 
-      {/* Interactive GLB preview for selected GLB shape */}
-      {selectedGLBShape && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "20px",
-            right: "20px",
-            zIndex: 1000,
-            border: "2px solid #0066ff",
-            borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            background: "#fff",
-          }}
-        >
-          <GLBRenderer
-            src={selectedGLBShape.src}
-            width={400}
-            height={400}
-            isSelected={true}
-            onLoad={() => {}}
-          />
-        </div>
-      )}
+          return (
+            <div
+              key={shape.id}
+              style={{
+                position: "absolute",
+                left: shape.x,
+                top: shape.y,
+                width,
+                height,
+                transform: `rotate(${shape.rotation || 0}deg)`,
+                transformOrigin: "top left",
+                pointerEvents: mode === "threejs" ? "auto" : "none", // Fixed!
+                zIndex: 10,
+              }}
+              onClick={(e) => {
+                if (mode === "konva") {
+                  e.stopPropagation();
+                  setSelectedShapeId(shape.id);
+                }
+              }}
+            >
+              <GLBRenderer
+                src={shape.src}
+                width={width}
+                height={height}
+                isSelected={selectedShapeId === shape.id}
+                interactionMode={mode}
+                onModeToggle={() => handleGLBModeToggle(shape.id)}
+                onLoad={(canvas) => {
+                  setGlbCanvases((prev) => new Map(prev).set(shape.id, canvas));
+                }}
+              />
+            </div>
+          );
+        })}
 
       {size.width > 0 && size.height > 0 && (
         <Stage
@@ -560,17 +559,14 @@ export default function Canvas() {
           ref={stageRef}
         >
           <Layer>
-            {/* Render all finished shapes (draggable) */}
             {shapes.map((shape) => (
               <React.Fragment key={shape.id}>
                 {renderShape(shape, true)}
               </React.Fragment>
             ))}
 
-            {/* Render current shape being drawn (not draggable) */}
             {currentShape && renderShape(currentShape, false)}
 
-            {/* Alignment lines */}
             {alignmentLines.map((line, index) => (
               <Line
                 key={index}
@@ -580,8 +576,7 @@ export default function Canvas() {
                 dash={[4, 4]}
               />
             ))}
-            
-            {/* Transformer for selected shape */}
+
             <Transformer
               ref={transformerRef}
               onTransformEnd={handleTransformEnd}
