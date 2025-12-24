@@ -9,6 +9,10 @@ export type BaseShape = {
   id: string;
   x: number;
   y: number;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  opacity?: number;
   rotation?: number;
   scaleX?: number;
   scaleY?: number;

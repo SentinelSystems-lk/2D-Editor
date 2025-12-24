@@ -2,20 +2,39 @@
 
 import type Konva from "konva";
 import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
-import { Stage, Layer, Rect, Circle, Image as KonvaImage, Transformer } from "react-konva";
+import {
+  Stage,
+  Layer,
+  Rect,
+  Circle,
+  Image as KonvaImage,
+  Transformer,
+  Line,
+} from "react-konva";
 import { useCanvasStore } from "../store/editorStore";
 import { createShape, updateShape } from "../utils/shapeFactory";
 import type { Shape, ImageShape, GLBShape } from "../store/editorStore";
-import { GLBRenderer } from './GLBRender';
+import { GLBRenderer } from "./GLBRender";
+
+type AlignmentLine = {
+  points: number[];
+  orientation: "vertical" | "horizontal";
+};
+
 
 export default function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const stageRef = useRef<Konva.Stage | null>(null);
-  const [loadedImages, setLoadedImages] = useState<Map<string, HTMLImageElement>>(new Map());
-  const [loadedGLBs, setLoadedGLBs] = useState<Map<string, HTMLCanvasElement>>(new Map());
+  const [loadedImages, setLoadedImages] = useState<
+    Map<string, HTMLImageElement>
+  >(new Map());
+  const [loadedGLBs, setLoadedGLBs] = useState<Map<string, HTMLCanvasElement>>(
+    new Map()
+  );
   const shapeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const transformerRef = useRef<Konva.Transformer | null>(null);
+  const [alignmentLines, setAlignmentLines] = useState<AlignmentLine[]>([]);
 
   const {
     shapes,
@@ -54,7 +73,9 @@ export default function Canvas() {
   }, []);
 
   useEffect(() => {
-    const imageShapes = shapes.filter((s): s is ImageShape => s.type === "image");
+    const imageShapes = shapes.filter(
+      (s): s is ImageShape => s.type === "image"
+    );
     imageShapes.forEach((shape) => {
       if (!loadedImages.has(shape.id)) {
         const img = new window.Image();
@@ -83,15 +104,139 @@ export default function Canvas() {
     }
   }, [selectedShapeId]);
 
+  const getShapeBounds = (shape: Shape) => {
+    const scaleX = shape.scaleX || 1;
+    const scaleY = shape.scaleY || 1;
+
+    if (shape.type === "rectangle") {
+      return {
+        x: shape.x,
+        y: shape.y,
+        width: shape.width * scaleX,
+        height: shape.height * scaleY,
+        centerX: shape.x + (shape.width * scaleX) / 2,
+        centerY: shape.y + (shape.height * scaleY) / 2,
+      };
+    } else if (shape.type === "circle") {
+      const diameter = shape.radius * 2 * scaleX;
+      return {
+        x: shape.x - shape.radius * scaleX,
+        y: shape.y - shape.radius * scaleY,
+        width: diameter,
+        height: diameter,
+        centerX: shape.x,
+        centerY: shape.y,
+      };
+    } else if (shape.type === "image" || shape.type === "glb") {
+      const width = (shape.width || 0) * scaleX;
+      const height = (shape.height || 0) * scaleY;
+      return {
+        x: shape.x,
+        y: shape.y,
+        width,
+        height,
+        centerX: shape.x + width / 2,
+        centerY: shape.y + height / 2,
+      };
+    }
+
+    return { x: 0, y: 0, width: 0, height: 0, centerX: 0, centerY: 0 };
+  };
+
+  const checkAlignment = (draggedShape: Shape) => {
+    const SNAP_THRESHOLD = 5;
+    const lines: AlignmentLine[] = [];
+    const draggedBounds = getShapeBounds(draggedShape);
+
+    shapes.forEach((shape) => {
+      if (shape.id === draggedShape.id) return;
+
+      const bounds = getShapeBounds(shape);
+
+      //canvas center
+      const canvasCenterX = size.width / 2;
+      const canvasCenterY = size.height / 2;
+
+      lines.push({
+        points: [canvasCenterX, 0, canvasCenterX, size.height],
+        orientation: "vertical",
+      })
+
+      lines.push({
+       points: [0, canvasCenterY, size.width, canvasCenterY],
+      orientation: "horizontal",
+      })
+
+      // Vertical alignment (X axis)
+      // Left edges
+      if (Math.abs(draggedBounds.x - bounds.x) < SNAP_THRESHOLD) {
+        lines.push({
+          points: [bounds.x, 0, bounds.x, size.height],
+          orientation: "vertical",
+        });
+      }
+      // Center alignment
+      if (Math.abs(draggedBounds.centerX - bounds.centerX) < SNAP_THRESHOLD) {
+        lines.push({
+          points: [bounds.centerX, 0, bounds.centerX, size.height],
+          orientation: "vertical",
+        });
+      }
+      // Right edges
+      if (
+        Math.abs(
+          draggedBounds.x + draggedBounds.width - (bounds.x + bounds.width)
+        ) < SNAP_THRESHOLD
+      ) {
+        const x = bounds.x + bounds.width;
+        lines.push({
+          points: [x, 0, x, size.height],
+          orientation: "vertical",
+        });
+      }
+
+      // Horizontal alignment (Y axis)
+      // Top edges
+      if (Math.abs(draggedBounds.y - bounds.y) < SNAP_THRESHOLD) {
+        lines.push({
+          points: [0, bounds.y, size.width, bounds.y],
+          orientation: "horizontal",
+        });
+      }
+      // Center alignment
+      if (Math.abs(draggedBounds.centerY - bounds.centerY) < SNAP_THRESHOLD) {
+        lines.push({
+          points: [0, bounds.centerY, size.width, bounds.centerY],
+          orientation: "horizontal",
+        });
+      }
+      // Bottom edges
+      if (
+        Math.abs(
+          draggedBounds.y + draggedBounds.height - (bounds.y + bounds.height)
+        ) < SNAP_THRESHOLD
+      ) {
+        const y = bounds.y + bounds.height;
+        lines.push({
+          points: [0, y, size.width, y],
+          orientation: "horizontal",
+        });
+      }
+    });
+
+    setAlignmentLines(lines);
+  };
+
   function handleMouseDown(e: any) {
     // Check if clicking on transformer or its anchors
-    const clickedOnTransformer = e.target.getParent()?.className === 'Transformer';
+    const clickedOnTransformer =
+      e.target.getParent()?.className === "Transformer";
     if (clickedOnTransformer) {
       return;
     }
 
     const clickedOnShape = e.target !== e.target.getStage();
-    
+
     if (clickedOnShape) {
       const shapeId = e.target.id();
       setSelectedShapeId(shapeId);
@@ -108,7 +253,12 @@ export default function Canvas() {
     if (!pointerPosition) return;
 
     const { x, y } = pointerPosition;
-    const newShape = createShape(selectedShapeType, x, y, Date.now().toString());
+    const newShape = createShape(
+      selectedShapeType,
+      x,
+      y,
+      Date.now().toString()
+    );
 
     setCurrentShape(newShape);
     setIsDrawing(true);
@@ -130,14 +280,33 @@ export default function Canvas() {
 
   function handleMouseUp() {
     if (currentShape) {
-      addShape(currentShape);
-      setSelectedShapeId(currentShape.id);
+      // Validate shape before adding
+      let isValid = false;
+
+      if (currentShape.type === "rectangle") {
+        isValid =
+          Math.abs(currentShape.width) > 5 && Math.abs(currentShape.height) > 5;
+      } else if (currentShape.type === "circle") {
+        isValid = currentShape.radius > 5;
+      }
+
+      if (isValid) {
+        addShape(currentShape);
+        setSelectedShapeId(currentShape.id);
+      }
     }
     clearCurrentShape();
   }
 
   const handleGLBLoad = (id: string, canvas: HTMLCanvasElement) => {
-    setLoadedGLBs((prev) => new Map(prev).set(id, canvas));
+    setLoadedGLBs((prev) => {
+      if (prev.has(id)) return prev; // 🚫 already loaded → do nothing
+
+      const next = new Map(prev);
+      next.set(id, canvas);
+      console.log("glb loaded:", id);
+      return next;
+    });
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -152,12 +321,12 @@ export default function Canvas() {
     if (files.length > 0) {
       const file = files[0];
 
-      if (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) {
+      if (file.name.endsWith(".glb") || file.name.endsWith(".gltf")) {
         const reader = new FileReader();
         reader.onload = () => {
           const glbShape: GLBShape = {
             id: Date.now().toString(),
-            type: 'glb',
+            type: "glb",
             x: pos.x,
             y: pos.y,
             src: reader.result as string,
@@ -209,7 +378,7 @@ export default function Canvas() {
 
   const handleTransformEnd = () => {
     if (!selectedShapeId) return;
-    
+
     const node = shapeRefs.current.get(selectedShapeId);
     if (!node) return;
 
@@ -222,11 +391,25 @@ export default function Canvas() {
     });
   };
 
+  const handleDragMove = (shapeId: string, node: Konva.Node) => {
+    const shape = shapes.find((s) => s.id === shapeId);
+    if (!shape) return;
+
+    const updatedShape: Shape = {
+      ...shape,
+      x: node.x(),
+      y: node.y(),
+    };
+
+    checkAlignment(updatedShape);
+  };
+
   const handleDragEnd = (shapeId: string, node: Konva.Node) => {
     updateShapeInStore(shapeId, {
       x: node.x(),
       y: node.y(),
     });
+    setAlignmentLines([]);
   };
 
   const renderShape = (shape: Shape, draggable = false) => {
@@ -238,8 +421,13 @@ export default function Canvas() {
       scaleX: shape.scaleX || 1,
       scaleY: shape.scaleY || 1,
       draggable: draggable,
+      fill: shape.fill || "#3b82f6",
+      stroke: shape.stroke || "#000000ff",
+      strokeWidth: shape.strokeWidth || 0,
+      opacity: shape.opacity ?? 1,
       onClick: () => setSelectedShapeId(shape.id),
       onTap: () => setSelectedShapeId(shape.id),
+      onDragMove: (e: any) => handleDragMove(shape.id, e.target),
       onDragEnd: (e: any) => handleDragEnd(shape.id, e.target),
       ref: (node: Konva.Node | null) => {
         if (node) {
@@ -249,34 +437,21 @@ export default function Canvas() {
         }
       },
     };
-    
-    if (shape.type === 'rectangle') {
+
+    if (shape.type === "rectangle") {
       return (
-        <Rect
-          {...commonProps}
-          width={shape.width}
-          height={shape.height}
-          fill="blue"
-          opacity={draggable ? 0.7 : 0.5}
-        />
-      );
-    }
-    
-    if (shape.type === 'circle') {
-      return (
-        <Circle
-          {...commonProps}
-          radius={shape.radius}
-          fill="blue"
-          opacity={draggable ? 0.7 : 0.5}
-        />
+        <Rect {...commonProps} width={shape.width} height={shape.height} />
       );
     }
 
-    if (shape.type === 'image') {
+    if (shape.type === "circle") {
+      return <Circle {...commonProps} radius={shape.radius} />;
+    }
+
+    if (shape.type === "image") {
       const img = loadedImages.get(shape.id);
       if (!img) return null;
-      
+
       return (
         <KonvaImage
           {...commonProps}
@@ -287,10 +462,23 @@ export default function Canvas() {
       );
     }
 
-    if (shape.type === 'glb') {
+    if (shape.type === "glb") {
       const canvas = loadedGLBs.get(shape.id);
-      if (!canvas) return null;
-      
+
+      // Show placeholder while loading
+      if (!canvas) {
+        return (
+          <Rect
+            {...commonProps}
+            width={shape.width}
+            height={shape.height}
+            fill="#f0f0f0"
+            stroke="#ccc"
+            strokeWidth={2}
+          />
+        );
+      }
+
       return (
         <KonvaImage
           {...commonProps}
@@ -300,9 +488,16 @@ export default function Canvas() {
         />
       );
     }
-    
+
     return null;
   };
+
+  // Get selected GLB shape
+  const selectedGLBShape = selectedShapeId
+    ? (shapes.find((s) => s.id === selectedShapeId && s.type === "glb") as
+        | GLBShape
+        | undefined)
+    : undefined;
 
   return (
     <div
@@ -310,21 +505,49 @@ export default function Canvas() {
       className="viewportContainer"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
+      style={{ position: "relative", width: "100%", height: "100%" }}
     >
-      {/* Hidden GLB renderers */}
-      <div style={{ position: 'absolute', left: '-9999px' }}>
+      {/* Hidden GLB renderers for non-selected GLB shapes */}
+      <div style={{ position: "absolute", left: "-9999px" }}>
         {shapes
-          .filter((s): s is GLBShape => s.type === 'glb')
+          .filter(
+            (s): s is GLBShape => s.type === "glb" && s.id !== selectedShapeId
+          )
           .map((shape) => (
             <GLBRenderer
               key={shape.id}
               src={shape.src}
               width={shape.width}
               height={shape.height}
+              isSelected={false}
               onLoad={(canvas) => handleGLBLoad(shape.id, canvas)}
             />
           ))}
       </div>
+
+      {/* Interactive GLB preview for selected GLB shape */}
+      {selectedGLBShape && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            zIndex: 1000,
+            border: "2px solid #0066ff",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            background: "#fff",
+          }}
+        >
+          <GLBRenderer
+            src={selectedGLBShape.src}
+            width={400}
+            height={400}
+            isSelected={true}
+            onLoad={() => {}}
+          />
+        </div>
+      )}
 
       {size.width > 0 && size.height > 0 && (
         <Stage
@@ -347,6 +570,17 @@ export default function Canvas() {
             {/* Render current shape being drawn (not draggable) */}
             {currentShape && renderShape(currentShape, false)}
 
+            {/* Alignment lines */}
+            {alignmentLines.map((line, index) => (
+              <Line
+                key={index}
+                points={line.points}
+                stroke="#FF00FF"
+                strokeWidth={1}
+                dash={[4, 4]}
+              />
+            ))}
+            
             {/* Transformer for selected shape */}
             <Transformer
               ref={transformerRef}
@@ -358,14 +592,14 @@ export default function Canvas() {
                 return newBox;
               }}
               enabledAnchors={[
-                'top-left',
-                'top-center',
-                'top-right',
-                'middle-right',
-                'middle-left',
-                'bottom-left',
-                'bottom-center',
-                'bottom-right',
+                "top-left",
+                "top-center",
+                "top-right",
+                "middle-right",
+                "middle-left",
+                "bottom-left",
+                "bottom-center",
+                "bottom-right",
               ]}
               rotateEnabled={true}
               borderStroke="#0066ff"
