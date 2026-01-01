@@ -10,6 +10,7 @@ import {
   Image as KonvaImage,
   Transformer,
   Line,
+  RegularPolygon,
 } from "react-konva";
 import { useCanvasStore } from "../store/editorStore";
 import { createShape, updateShape } from "../utils/shapeFactory";
@@ -19,6 +20,11 @@ import { GLBRenderer } from "./GLBRender";
 type AlignmentLine = {
   points: number[];
   orientation: "vertical" | "horizontal";
+};
+
+type PenLine = {
+  tool: "pen" | "eraser";
+  points: number[];
 };
 
 export default function Canvas() {
@@ -38,12 +44,16 @@ export default function Canvas() {
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const [alignmentLines, setAlignmentLines] = useState<AlignmentLine[]>([]);
 
+  const [penLines, setPenLines] = useState<PenLine[]>([]);
+  const isPenDrawing = useRef(false);
+
   const {
     shapes,
     currentShape,
     isDrawing,
     selectedShapeType,
     selectedShapeId,
+    isPenSelected,
     setStage,
     addShape,
     setCurrentShape,
@@ -140,7 +150,18 @@ export default function Canvas() {
         centerX: shape.x,
         centerY: shape.y,
       };
-    } else if (shape.type === "image" || shape.type === "glb") {
+    }else if (shape.type === "triangle") {
+      return {
+        x: shape.x,
+        y: shape.y,
+        width: shape.width * scaleX,
+        height: shape.height * scaleY,
+        centerX: shape.x + (shape.width * scaleX) / 2,
+        centerY: shape.y + (shape.height * scaleY) / 2,
+      };
+    }
+
+    else if (shape.type === "image" || shape.type === "glb") {
       const width = (shape.width || 0) * scaleX;
       const height = (shape.height || 0) * scaleY;
       return {
@@ -232,6 +253,24 @@ export default function Canvas() {
   };
 
   function handleMouseDown(e: any) {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const pointerPosition = stage.getPointerPosition();
+    if (!pointerPosition) return;
+
+    // 🖊 PEN MODE - start drawing, deselect any shapes
+    if (isPenSelected) {
+      setSelectedShapeId(null);
+      setAlignmentLines([]);
+      isPenDrawing.current = true;
+      setPenLines((prev) => [
+        ...prev,
+        { tool: "pen", points: [pointerPosition.x, pointerPosition.y] },
+      ]);
+      return;
+    }
+
     const clickedOnTransformer =
       e.target.getParent()?.className === "Transformer";
     if (clickedOnTransformer) {
@@ -247,12 +286,7 @@ export default function Canvas() {
     }
 
     setSelectedShapeId(null);
-
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    const pointerPosition = stage.getPointerPosition();
-    if (!pointerPosition) return;
+    setAlignmentLines([]);
 
     const { x, y } = pointerPosition;
     const newShape = createShape(
@@ -267,6 +301,30 @@ export default function Canvas() {
   }
 
   function handleMouseMove() {
+    // 🖊 PEN MODE - handle pen drawing
+    if (isPenSelected && isPenDrawing.current) {
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const pointerPosition = stage.getPointerPosition();
+      if (!pointerPosition) return;
+
+      setPenLines((prev) => {
+        const lastLine = prev[prev.length - 1];
+        if (!lastLine) return prev;
+
+        const updatedLine = {
+          ...lastLine,
+          points: lastLine.points.concat([
+            pointerPosition.x,
+            pointerPosition.y,
+          ]),
+        };
+        return [...prev.slice(0, -1), updatedLine];
+      });
+      return;
+    }
+
     if (!currentShape || !isDrawing) return;
 
     const stage = stageRef.current;
@@ -281,6 +339,11 @@ export default function Canvas() {
   }
 
   function handleMouseUp() {
+    if (isPenSelected) {
+      isPenDrawing.current = false;
+      return;
+    }
+
     if (currentShape) {
       let isValid = false;
 
@@ -289,6 +352,9 @@ export default function Canvas() {
           Math.abs(currentShape.width) > 5 && Math.abs(currentShape.height) > 5;
       } else if (currentShape.type === "circle") {
         isValid = currentShape.radius > 5;
+      }else if (currentShape.type === "triangle") {
+        isValid =
+          Math.abs(currentShape.width) > 5 && Math.abs(currentShape.height) > 5;
       }
 
       if (isValid) {
@@ -438,10 +504,28 @@ export default function Canvas() {
       stroke: shape.stroke || "#000000ff",
       strokeWidth: shape.strokeWidth || 0,
       opacity: shape.opacity ?? 1,
-      onClick: () => setSelectedShapeId(shape.id),
-      onTap: () => setSelectedShapeId(shape.id),
-      onDragMove: (e: any) => handleDragMove(shape.id, e.target),
-      onDragEnd: (e: any) => handleDragEnd(shape.id, e.target),
+      onClick: () => {
+        // Only select shapes if not in pen mode
+        if (!isPenSelected) {
+          setSelectedShapeId(shape.id);
+        }
+      },
+      onTap: () => {
+        // Only select shapes if not in pen mode
+        if (!isPenSelected) {
+          setSelectedShapeId(shape.id);
+        }
+      },
+      onDragMove: (e: any) => {
+        if (!isPenSelected) {
+          handleDragMove(shape.id, e.target);
+        }
+      },
+      onDragEnd: (e: any) => {
+        if (!isPenSelected) {
+          handleDragEnd(shape.id, e.target);
+        }
+      },
       ref: (node: Konva.Node | null) => {
         if (node) {
           shapeRefs.current.set(shape.id, node);
@@ -461,6 +545,18 @@ export default function Canvas() {
       return <Circle {...commonProps} radius={shape.radius} />;
     }
 
+    if (shape.type === "triangle") {
+      return (
+        <RegularPolygon
+          {...commonProps}
+          sides={3}
+          radius={shape.width}
+          rotation={shape.rotation}
+        />
+      );
+    }
+
+
     if (shape.type === "image") {
       const img = loadedImages.get(shape.id);
       if (!img) return null;
@@ -476,8 +572,6 @@ export default function Canvas() {
     }
 
     if (shape.type === "glb") {
-      const canvas = glbCanvases.get(shape.id);
-
       return (
         <Rect
           {...commonProps}
@@ -523,11 +617,11 @@ export default function Canvas() {
                 height,
                 transform: `rotate(${shape.rotation || 0}deg)`,
                 transformOrigin: "top left",
-                pointerEvents: mode === "threejs" ? "auto" : "none", // Fixed!
+                pointerEvents: mode === "threejs" ? "auto" : "none",
                 zIndex: 10,
               }}
               onClick={(e) => {
-                if (mode === "konva") {
+                if (mode === "konva" && !isPenSelected) {
                   e.stopPropagation();
                   setSelectedShapeId(shape.id);
                 }
@@ -559,6 +653,23 @@ export default function Canvas() {
           ref={stageRef}
         >
           <Layer>
+            {/* 🖊 Pen Lines */}
+            {penLines.map((line, i) => (
+              <Line
+                key={i}
+                points={line.points}
+                stroke="#df4b26"
+                strokeWidth={5}
+                tension={0.5}
+                lineCap="round"
+                lineJoin="round"
+                globalCompositeOperation={
+                  line.tool === "eraser" ? "destination-out" : "source-over"
+                }
+                listening={false}
+              />
+            ))}
+            
             {shapes.map((shape) => (
               <React.Fragment key={shape.id}>
                 {renderShape(shape, true)}
@@ -574,6 +685,7 @@ export default function Canvas() {
                 stroke="#FF00FF"
                 strokeWidth={1}
                 dash={[4, 4]}
+                listening={false}
               />
             ))}
 

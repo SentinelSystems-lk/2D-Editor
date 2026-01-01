@@ -8,6 +8,7 @@ function ShapeDropdown() {
   const { selectedShapeType, setSelectedShapeType } = useCanvasStore();
   const select = useCanvasStore((state) => state.isSelectClicked);
   const{isSelectClicked, setSelectClick} = useCanvasStore();
+  const{isPenSelected, setPenSelected} = useCanvasStore();
   
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value as ShapeType;
@@ -23,8 +24,16 @@ function ShapeDropdown() {
     console.log(select);
   }
 
+  function handlepen(){
+    setPenSelected(!isPenSelected);
+    console.log(isPenSelected);
+  }
+
+
   return (
     <div className="mb-4">
+      <button onClick={handlepen}>Pen</button>
+      <br />
       <button onClick={handleSelect} className={`Selectbtn ${isSelectClicked ? "active" : "inactive"}`}>Select</button>
       <br />
       <label className="block text-sm font-medium mb-2">
@@ -37,6 +46,7 @@ function ShapeDropdown() {
       >
         <option value="rectangle">Rectangle</option>
         <option value="circle">Circle</option>
+        <option value="triangle">Triangle</option>
       </select>
       <p className="text-xs text-gray-500 mt-1">
         Current: <span className="font-semibold">{selectedShapeType}</span>
