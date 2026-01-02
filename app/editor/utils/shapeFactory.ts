@@ -1,4 +1,4 @@
- import type { Shape, ShapeType, RectangleShape, CircleShape } from '../store/editorStore';
+import type { Shape, ShapeType, RectangleShape, CircleShape, TriangleShape } from '../store/editorStore';
 
 /**
  * Creates a new shape based on the type
@@ -26,6 +26,15 @@ export const createShape = (
         type: 'circle',
         radius: 0,
       } as CircleShape;
+
+    case 'triangle':
+      return {
+        ...baseShape,
+        type: 'triangle',
+        width: 0,
+        height: 0,
+      } as TriangleShape;
+
       
     default:
       throw new Error(`Unknown shape type: ${type}`);
@@ -58,6 +67,19 @@ export const updateShape = (
         radius,
       } as CircleShape;
     }
+
+    case 'triangle':
+      return {
+        ...shape,
+        width: currentX - shape.x,
+        height: currentY - shape.y,
+      } as TriangleShape;
+    
+    case 'image':
+    case 'glb':
+      // Image and GLB shapes don't support drawing mode
+      // They are created with fixed dimensions on drop
+      return shape;
       
     default:
       return shape;

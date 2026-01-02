@@ -68,10 +68,11 @@ input[type="color"] {
 }
 
 .panel-title {
-  font-size: 12px;
+  text-align: center;
+  font-size: 14px;
   text-transform: uppercase;
   color: #888;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   font-weight: 600;
 }
 

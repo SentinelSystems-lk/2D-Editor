@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type Konva from "konva";
 
 // Shape Types
-export type ShapeType = "rectangle" | "circle";
+export type ShapeType = "rectangle" | "circle" | "triangle" ;
 
 export type BaseShape = {
   id: string;
@@ -29,6 +29,17 @@ export type CircleShape = BaseShape & {
   radius: number;
 };
 
+export type TriangleShape = BaseShape & {
+  type: "triangle";
+  width: number;
+  height: number;
+};
+
+export type EllipseShape = BaseShape & {
+  type: "ellipse";
+  radius: number;
+};
+
 export type ImageShape = BaseShape & {
   type: "image";
   src: string;
@@ -43,7 +54,7 @@ export type GLBShape = BaseShape & {
   height: number;
 };
 
-export type Shape = RectangleShape | CircleShape | ImageShape | GLBShape;
+export type Shape = RectangleShape | CircleShape | ImageShape | GLBShape | TriangleShape;
 
 // Store Type
 type CanvasStore = {
@@ -74,6 +85,12 @@ type CanvasStore = {
   // Select Mode
   isSelectClicked: boolean;
   setSelectClick: (select: boolean) => void;
+
+  isPenSelected: boolean;
+  setPenSelected: (pen: boolean) => void;
+
+  isDisjointMode: boolean;
+  setDisjointMode: (mode: boolean) => void;
 
   clearCurrentShape: () => void;
 };
@@ -121,5 +138,11 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   isSelectClicked: true,
   setSelectClick: (select) => set({ isSelectClicked: select }),
 
+  isPenSelected: false,
+  setPenSelected: (pen) => set({ isPenSelected: pen }),
+
+
+  isDisjointMode: false,
+  setDisjointMode: (mode) => set({ isDisjointMode: mode }),
   clearCurrentShape: () => set({ currentShape: null, isDrawing: false }),
 }));
