@@ -89,6 +89,9 @@ type CanvasStore = {
   isPenSelected: boolean;
   setPenSelected: (pen: boolean) => void;
 
+  isDisjointMode: boolean;
+  setDisjointMode: (mode: boolean) => void;
+
   clearCurrentShape: () => void;
 };
 
@@ -138,5 +141,8 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   isPenSelected: false,
   setPenSelected: (pen) => set({ isPenSelected: pen }),
 
+
+  isDisjointMode: false,
+  setDisjointMode: (mode) => set({ isDisjointMode: mode }),
   clearCurrentShape: () => set({ currentShape: null, isDrawing: false }),
 }));

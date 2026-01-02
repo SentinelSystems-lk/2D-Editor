@@ -9,8 +9,10 @@ function ShapeDropdown() {
   const select = useCanvasStore((state) => state.isSelectClicked);
   const{isSelectClicked, setSelectClick} = useCanvasStore();
   const{isPenSelected, setPenSelected} = useCanvasStore();
+  const{isDisjointMode, setDisjointMode} = useCanvasStore();
   
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setPenSelected(false);
     const value = e.target.value as ShapeType;
     if (value) {
       setSelectedShapeType(value);
@@ -20,21 +22,36 @@ function ShapeDropdown() {
   
   
   function handleSelect(){
+    setPenSelected(false);
     setSelectClick(!isSelectClicked);
     console.log(select);
   }
 
   function handlepen(){
+    setSelectClick(false);
     setPenSelected(!isPenSelected);
     console.log(isPenSelected);
+  }
+
+  function handleDisjoint() {
+    setDisjointMode(!isDisjointMode);
   }
 
 
   return (
     <div className="mb-4">
-      <button onClick={handlepen}>Pen</button>
+      <button onClick={handlepen} className={`Selectbtn ${isPenSelected ? "active" : "inactive"}`}>🖊️</button>
       <br />
       <button onClick={handleSelect} className={`Selectbtn ${isSelectClicked ? "active" : "inactive"}`}>Select</button>
+      <br />
+      <button
+          onClick={handleDisjoint}
+          className={`w-full mb-2 px-4 py-2 rounded font-semibold transition-colors ${
+            isDisjointMode ? "bg-green-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+          }`}
+        >
+          🚫 Disjoint Mode {isDisjointMode ? "ON" : "OFF"}
+        </button>
       <br />
       <label className="block text-sm font-medium mb-2">
         Select Shape Tool

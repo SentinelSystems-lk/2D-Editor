@@ -54,6 +54,7 @@ export default function Canvas() {
     selectedShapeType,
     selectedShapeId,
     isPenSelected,
+    isDisjointMode,
     setStage,
     addShape,
     setCurrentShape,
@@ -150,7 +151,7 @@ export default function Canvas() {
         centerX: shape.x,
         centerY: shape.y,
       };
-    }else if (shape.type === "triangle") {
+    } else if (shape.type === "triangle") {
       return {
         x: shape.x,
         y: shape.y,
@@ -159,9 +160,7 @@ export default function Canvas() {
         centerX: shape.x + (shape.width * scaleX) / 2,
         centerY: shape.y + (shape.height * scaleY) / 2,
       };
-    }
-
-    else if (shape.type === "image" || shape.type === "glb") {
+    } else if (shape.type === "image" || shape.type === "glb") {
       const width = (shape.width || 0) * scaleX;
       const height = (shape.height || 0) * scaleY;
       return {
@@ -175,6 +174,51 @@ export default function Canvas() {
     }
 
     return { x: 0, y: 0, width: 0, height: 0, centerX: 0, centerY: 0 };
+  };
+
+  const checkCollision = (bounds1: any, bounds2: any): boolean => {
+    return !(
+      bounds1.x + bounds1.width < bounds2.x ||
+      bounds2.x + bounds2.width < bounds1.x ||
+      bounds1.y + bounds1.height < bounds2.y ||
+      bounds2.y + bounds2.height < bounds1.y
+    );
+  };
+
+  const resolveCollision = (
+    movingShape: Shape,
+    staticShape: Shape
+  ): { x: number; y: number } => {
+    const movingBounds = getShapeBounds(movingShape);
+    const staticBounds = getShapeBounds(staticShape);
+
+    const overlapX = Math.min(
+      movingBounds.x + movingBounds.width - staticBounds.x,
+      staticBounds.x + staticBounds.width - movingBounds.x
+    );
+    const overlapY = Math.min(
+      movingBounds.y + movingBounds.height - staticBounds.y,
+      staticBounds.y + staticBounds.height - movingBounds.y
+    );
+
+    let newX = movingShape.x;
+    let newY = movingShape.y;
+
+    if (overlapX < overlapY) {
+      if (movingBounds.x < staticBounds.x) {
+        newX = movingShape.x - overlapX - 1;
+      } else {
+        newX = movingShape.x + overlapX + 1;
+      }
+    } else {
+      if (movingBounds.y < staticBounds.y) {
+        newY = movingShape.y - overlapY - 1;
+      } else {
+        newY = movingShape.y + overlapY + 1;
+      }
+    }
+
+    return { x: newX, y: newY };
   };
 
   const checkAlignment = (draggedShape: Shape) => {
@@ -352,7 +396,7 @@ export default function Canvas() {
           Math.abs(currentShape.width) > 5 && Math.abs(currentShape.height) > 5;
       } else if (currentShape.type === "circle") {
         isValid = currentShape.radius > 5;
-      }else if (currentShape.type === "triangle") {
+      } else if (currentShape.type === "triangle") {
         isValid =
           Math.abs(currentShape.width) > 5 && Math.abs(currentShape.height) > 5;
       }
@@ -440,20 +484,20 @@ export default function Canvas() {
     e.preventDefault();
   };
 
-  const handleTransformEnd = () => {
-    if (!selectedShapeId) return;
+  // const handleTransformEnd = () => {
+  //   if (!selectedShapeId) return;
 
-    const node = shapeRefs.current.get(selectedShapeId);
-    if (!node) return;
+  //   const node = shapeRefs.current.get(selectedShapeId);
+  //   if (!node) return;
 
-    updateShapeInStore(selectedShapeId, {
-      x: node.x(),
-      y: node.y(),
-      rotation: node.rotation(),
-      scaleX: node.scaleX(),
-      scaleY: node.scaleY(),
-    });
-  };
+  //   updateShapeInStore(selectedShapeId, {
+  //     x: node.x(),
+  //     y: node.y(),
+  //     rotation: node.rotation(),
+  //     scaleX: node.scaleX(),
+  //     scaleY: node.scaleY(),
+  //   });
+  // };
 
   const handleDragMove = (shapeId: string, node: Konva.Node) => {
     const shape = shapes.find((s) => s.id === shapeId);
@@ -468,13 +512,85 @@ export default function Canvas() {
     checkAlignment(updatedShape);
   };
 
-  const handleDragEnd = (shapeId: string, node: Konva.Node) => {
-    updateShapeInStore(shapeId, {
-      x: node.x(),
-      y: node.y(),
-    });
+  // const handleDragEnd = (shapeId: string, node: Konva.Node) => {
+  //   updateShapeInStore(shapeId, {
+  //     x: node.x(),
+  //     y: node.y(),
+  //   });
+  //   setAlignmentLines([]);
+  // };
+
+
+  const handleDragEnd = (shapeId: string, node: any) => {
+    let finalX = node.x();
+    let finalY = node.y();
+
+    if (isDisjointMode) {
+      const draggedShape = shapes.find((s) => s.id === shapeId);
+      if (!draggedShape) return;
+
+      let adjustedShape = { ...draggedShape, x: finalX, y: finalY };
+
+      for (const otherShape of shapes) {
+        if (otherShape.id === shapeId) continue;
+
+        const draggedBounds = getShapeBounds(adjustedShape);
+        const otherBounds = getShapeBounds(otherShape);
+
+        if (checkCollision(draggedBounds, otherBounds)) {
+          const resolved = resolveCollision(adjustedShape, otherShape);
+          adjustedShape = { ...adjustedShape, x: resolved.x, y: resolved.y };
+          finalX = resolved.x;
+          finalY = resolved.y;
+        }
+      }
+    }
+
+    updateShapeInStore(shapeId, { x: finalX, y: finalY });
     setAlignmentLines([]);
   };
+
+  const handleTransformEnd = () => {
+    if (!selectedShapeId) return;
+    const node = shapeRefs.current.get(selectedShapeId);
+    if (!node) return;
+
+    let finalX = node.x();
+    let finalY = node.y();
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const rotation = node.rotation();
+
+    if (isDisjointMode) {
+      const transformedShape = shapes.find((s) => s.id === selectedShapeId);
+      if (!transformedShape) return;
+
+      let adjustedShape = { ...transformedShape, x: finalX, y: finalY, scaleX, scaleY };
+
+      for (const otherShape of shapes) {
+        if (otherShape.id === selectedShapeId) continue;
+
+        const transformedBounds = getShapeBounds(adjustedShape);
+        const otherBounds = getShapeBounds(otherShape);
+
+        if (checkCollision(transformedBounds, otherBounds)) {
+          const resolved = resolveCollision(adjustedShape, otherShape);
+          adjustedShape = { ...adjustedShape, x: resolved.x, y: resolved.y };
+          finalX = resolved.x;
+          finalY = resolved.y;
+        }
+      }
+    }
+
+    updateShapeInStore(selectedShapeId, {
+      x: finalX,
+      y: finalY,
+      rotation,
+      scaleX,
+      scaleY,
+    });
+  };
+
 
   const handleGLBModeToggle = (shapeId: string) => {
     setGlbInteractionModes((prev) => {
@@ -555,7 +671,6 @@ export default function Canvas() {
         />
       );
     }
-
 
     if (shape.type === "image") {
       const img = loadedImages.get(shape.id);
@@ -669,7 +784,7 @@ export default function Canvas() {
                 listening={false}
               />
             ))}
-            
+
             {shapes.map((shape) => (
               <React.Fragment key={shape.id}>
                 {renderShape(shape, true)}
