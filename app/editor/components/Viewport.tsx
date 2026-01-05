@@ -18,13 +18,14 @@ import { renderShape } from "../utils/shapeRenderer";
 import { handleFileDrop } from "../utils/fileHandlers";
 import { useLineDrawing } from "../hooks/useLineDrawing";
 
-
 export default function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
   const shapeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const transformerRef = useRef<Konva.Transformer | null>(null);
-  const draggedPointRef = useRef<{ lineId: string; pointIndex: 0 | 2 } | null>(null);
+  const draggedPointRef = useRef<{ lineId: string; pointIndex: 0 | 2 } | null>(
+    null
+  );
 
   const {
     shapes,
@@ -62,8 +63,18 @@ export default function Canvas() {
   const { penLines, handlePenMouseDown, handlePenMouseMove, handlePenMouseUp } =
     usePenDrawing(stageRef, isPenSelected);
 
-  const { handleLineMouseDown, handleLineMouseMove, handleLineMouseUp, handleLineDrag, handleControlPointMouseDown, handleControlPointDragMove } =
-    useLineDrawing(stageRef, isLineSelected);
+  const {
+    handleLineMouseDown,
+    handleLineMouseMove,
+    handleLineMouseUp,
+    handleLineDrag,
+    handleLineDragEnd,
+    handleControlPointMouseDown,
+    handleControlPointDragMove,
+    handleControlPointDragEnd,
+    isControlPointDragging,
+  } = useLineDrawing(stageRef, isLineSelected);
+
 
   const {
     handleDrawingMouseDown,
@@ -165,7 +176,6 @@ export default function Canvas() {
     };
 
     checkAlignment(updatedShape);
-
   };
 
   const handleDragEnd = (shapeId: string, node: any) => {
@@ -180,6 +190,39 @@ export default function Canvas() {
 
     updateShapeInStore(shapeId, { x: finalX, y: finalY });
     clearAlignment();
+  };
+
+  const handleLineDragWithAlignment = (lineId: string, e: any) => {
+    // perform the line drag update (updates store)
+    handleLineDrag(lineId, e);
+
+    // read updated line from store and compute bounds for alignment
+    const updated = lines.find((l) => l.id === lineId);
+    if (!updated) return;
+    const [x1, y1, x2, y2] = updated.points;
+    const x = Math.min(x1, x2);
+    const y = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+
+    // craft a temporary rectangle-like object for alignment checks
+    checkAlignment({ id: lineId, type: "rectangle", x, y, width, height, scaleX: 1, scaleY: 1 } as any);
+  };
+
+  const handleControlPointDragMoveWithAlignment = (
+    e: any,
+    lineId: string,
+    pointIndex: 0 | 2
+  ) => {
+    handleControlPointDragMove(e, lineId, pointIndex);
+
+    const updated = lines.find((l) => l.id === lineId);
+    if (!updated) return;
+    const px = updated.points[pointIndex];
+    const py = updated.points[pointIndex + 1];
+
+    // treat the dragged point as a zero-size rect/point for alignment
+    checkAlignment({ id: lineId, type: "rectangle", x: px, y: py, width: 0, height: 0, scaleX: 1, scaleY: 1 } as any);
   };
 
   const handleTransformEnd = () => {
@@ -214,7 +257,6 @@ export default function Canvas() {
     });
   };
 
-
   const handleDrop = (e: React.DragEvent) => {
     handleFileDrop(
       e,
@@ -224,6 +266,8 @@ export default function Canvas() {
       glbInteractionModes
     );
   };
+
+  
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -318,71 +362,62 @@ export default function Canvas() {
 
               return (
                 <React.Fragment key={line.id}>
-                  <Line
+                    <Line
                     id={line.id}
                     points={line.points}
                     stroke={line.stroke}
                     strokeWidth={line.strokeWidth}
-                    opacity={line.opacity}
                     lineCap="round"
                     lineJoin="round"
-                    draggable={!isPenSelected && !draggedPointRef.current}
-                    onDragMove={(e) => handleLineDrag(line.id, e)}
+                    draggable={
+                      !isPenSelected && !isControlPointDragging.current
+                    }
+                    onDragMove={(e) => handleLineDragWithAlignment(line.id, e)}
+                    onDragEnd={handleLineDragEnd}
                     onClick={() => {
-                      if (!isPenSelected) {
-                        setSelectedLineId(line.id);
-                        setSelectedShapeId(null);
-                      }
+                      setSelectedLineId(line.id);
+                      setSelectedShapeId(null);
                     }}
                     shadowColor={isSelected ? "#0066ff" : undefined}
                     shadowBlur={isSelected ? 10 : 0}
-                    shadowOpacity={isSelected ? 0.5 : 0}
                   />
-                  
-                  {/* Show control points when selected */}
+
                   {isSelected && (
                     <>
+                      {/* START POINT */}
                       <Circle
                         x={x1}
                         y={y1}
                         radius={6}
                         fill="#0066ff"
-                        stroke="#ffffff"
+                        stroke="#fff"
                         strokeWidth={2}
                         draggable
-                        onMouseDown={(e) => handleControlPointMouseDown(e, line.id, 0)}
-                        onDragMove={(e) => handleControlPointDragMove(e, line.id, 0)}
-                        onMouseEnter={(e) => {
-                          const node = e.target;
-                          node.scale({ x: 1.5, y: 1.5 });
-                          stageRef.current.container().style.cursor = "grab";
-                        }}
-                        onMouseLeave={(e) => {
-                          const node = e.target;
-                          node.scale({ x: 1, y: 1 });
-                          stageRef.current.container().style.cursor = "default";
-                        }}
+                        onMouseDown={(e) =>
+                          handleControlPointMouseDown(e, line.id, 0)
+                        }
+                        onDragMove={(e) =>
+                          handleControlPointDragMoveWithAlignment(e, line.id, 0)
+                        }
+                        onDragEnd={handleControlPointDragEnd}
                       />
+
+                      {/* END POINT */}
                       <Circle
                         x={x2}
                         y={y2}
                         radius={6}
                         fill="#0066ff"
-                        stroke="#ffffff"
+                        stroke="#fff"
                         strokeWidth={2}
                         draggable
-                        onMouseDown={(e) => handleControlPointMouseDown(e, line.id, 2)}
-                        onDragMove={(e) => handleControlPointDragMove(e, line.id, 2)}
-                        onMouseEnter={(e) => {
-                          const node = e.target;
-                          node.scale({ x: 1.5, y: 1.5 });
-                          stageRef.current.container().style.cursor = "grab";
-                        }}
-                        onMouseLeave={(e) => {
-                          const node = e.target;
-                          node.scale({ x: 1, y: 1 });
-                          stageRef.current.container().style.cursor = "default";
-                        }}
+                        onMouseDown={(e) =>
+                          handleControlPointMouseDown(e, line.id, 2)
+                        }
+                        onDragMove={(e) =>
+                          handleControlPointDragMoveWithAlignment(e, line.id, 2)
+                        }
+                        onDragEnd={handleControlPointDragEnd}
                       />
                     </>
                   )}

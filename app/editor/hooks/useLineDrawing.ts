@@ -7,8 +7,10 @@ export function useLineDrawing(
   stageRef: React.RefObject<any>,
   isLineSelected: boolean
 ) {
-    const draggedPointRef = useRef<{ lineId: string; pointIndex: 0 | 2 } | null>(null);
   const isLineDrawing = useRef(false);
+  const isControlPointDragging = useRef(false);
+  const lastLineDragPos = useRef<{ x: number; y: number } | null>(null);
+
   const {
     addLine,
     setCurrentLine,
@@ -18,26 +20,22 @@ export function useLineDrawing(
     updateLine,
   } = useCanvasStore();
 
+  /* ================= LINE DRAWING ================= */
+
   const handleLineMouseDown = () => {
     if (!isLineSelected) return;
 
     const stage = stageRef.current;
     if (!stage) return;
 
-    const pointerPosition = stage.getPointerPosition();
-    if (!pointerPosition) return;
+    const pos = stage.getPointerPosition();
+    if (!pos) return;
 
     isLineDrawing.current = true;
 
-    // Create a new line for live preview
     const newLine: LineType = {
       id: `line-${Date.now()}`,
-      points: [
-        pointerPosition.x,
-        pointerPosition.y,
-        pointerPosition.x,
-        pointerPosition.y,
-      ],
+      points: [pos.x, pos.y, pos.x, pos.y],
       stroke: "#000000",
       strokeWidth: 2,
     };
@@ -51,44 +49,71 @@ export function useLineDrawing(
     const stage = stageRef.current;
     if (!stage) return;
 
-    const pointerPosition = stage.getPointerPosition();
-    if (!pointerPosition) return;
+    const pos = stage.getPointerPosition();
+    if (!pos) return;
 
-    // Update the end point of the line
-    const x1 = currentLine.points[0];
-    const y1 = currentLine.points[1];
+    const [x1, y1] = currentLine.points;
 
     setCurrentLine({
       ...currentLine,
-      points: [x1, y1, pointerPosition.x, pointerPosition.y],
+      points: [x1, y1, pos.x, pos.y],
     });
   };
 
+  const handleLineMouseUp = () => {
+    if (!isLineDrawing.current || !currentLine) return;
+
+    isLineDrawing.current = false;
+    addLine(currentLine);
+    setCurrentLine(null);
+    setLineSelected(false);
+    isControlPointDragging.current = false;
+  };
+
+  /* ================= LINE DRAG ================= */
+
   const handleLineDrag = (lineId: string, e: any) => {
+    if (isControlPointDragging.current) return;
+
     const line = lines.find((l) => l.id === lineId);
     if (!line) return;
 
     const node = e.target;
-    // Prefer pointer movement delta when available for smooth updates
-    const movementX = e.evt?.movementX ?? node.x();
-    const movementY = e.evt?.movementY ?? node.y();
+    const pos = node.position();
 
-    const newPoints = line.points.map((coord, i) =>
-      i % 2 === 0 ? coord + movementX : coord + movementY
+    // First drag frame
+    if (!lastLineDragPos.current) {
+      lastLineDragPos.current = { x: pos.x, y: pos.y };
+      return;
+    }
+
+    const dx = pos.x - lastLineDragPos.current.x;
+    const dy = pos.y - lastLineDragPos.current.y;
+
+    lastLineDragPos.current = { x: pos.x, y: pos.y };
+
+    const newPoints = line.points.map((v, i) =>
+      i % 2 === 0 ? v + dx : v + dy
     );
 
-    // Reset node translation (we applied delta to points)
-    node.position({ x: 0, y: 0 });
     updateLine(lineId, { points: newPoints });
   };
 
+  const handleLineDragEnd = (e: any) => {
+    const node = e.target;
+    node.position({ x: 0, y: 0 });
+    lastLineDragPos.current = null;
+  };
+
+  /* ================= CONTROL POINTS ================= */
+
   const handleControlPointMouseDown = (
     e: any,
-    lineId: string,
-    pointIndex: 0 | 2
+    _lineId: string,
+    _pointIndex: 0 | 2
   ) => {
-    e.cancelBubble = true
-    draggedPointRef.current = { lineId, pointIndex };
+    e.cancelBubble = true;
+    isControlPointDragging.current = true;
   };
 
   const handleControlPointDragMove = (
@@ -96,32 +121,21 @@ export function useLineDrawing(
     lineId: string,
     pointIndex: 0 | 2
   ) => {
+    e.cancelBubble = true;
+
     const node = e.target;
-    const pos = node.getAbsolutePosition();
-    const stage = stageRef.current;
-
-    if (!stage || !pos) return;
-
     const line = lines.find((l) => l.id === lineId);
     if (!line) return;
 
     const newPoints = [...line.points];
-    newPoints[pointIndex] = pos.x;
-    newPoints[pointIndex + 1] = pos.y;
+    newPoints[pointIndex] = node.x();
+    newPoints[pointIndex + 1] = node.y();
 
     updateLine(lineId, { points: newPoints });
-    node.position({ x: 0, y: 0 });
   };
 
-  const handleLineMouseUp = () => {
-    if (!isLineDrawing.current || !currentLine) return;
-
-    isLineDrawing.current = false;
-
-    // Add the completed line to lines array
-    addLine(currentLine);
-    setCurrentLine(null);
-    setLineSelected(false);
+  const handleControlPointDragEnd = () => {
+    isControlPointDragging.current = false;
   };
 
   return {
@@ -131,5 +145,8 @@ export function useLineDrawing(
     handleLineDrag,
     handleControlPointMouseDown,
     handleControlPointDragMove,
+    handleControlPointDragEnd,
+    handleLineDragEnd,
+    isControlPointDragging,
   };
 }
