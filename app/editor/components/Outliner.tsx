@@ -10,6 +10,8 @@ function ShapeDropdown() {
   const{isSelectClicked, setSelectClick} = useCanvasStore();
   const{isPenSelected, setPenSelected} = useCanvasStore();
   const{isDisjointMode, setDisjointMode} = useCanvasStore();
+  const{isLineSelected, setLineSelected} = useCanvasStore();
+  const{selectedLineId, setSelectedLineId} = useCanvasStore();
   
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setPenSelected(false);
@@ -36,6 +38,14 @@ function ShapeDropdown() {
   function handleDisjoint() {
     setDisjointMode(!isDisjointMode);
   }
+
+  function handleLine(){
+    setSelectClick(false);
+    setLineSelected(!isLineSelected);
+    console.log(isLineSelected);
+  }
+
+  
 
 
   return (
@@ -78,6 +88,15 @@ function ShapeDropdown() {
         >
           Text
         </button>
+      </div>
+
+      <div>
+        <button
+         onClick={handleLine}
+        >
+          Line
+        </button>
+        {selectedLineId}
       </div>
       <p className="text-xs text-gray-500 mt-1">
         Current: <span className="font-semibold">{selectedShapeType}</span>
