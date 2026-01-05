@@ -53,18 +53,32 @@ function ShapeDropdown() {
           🚫 Disjoint Mode {isDisjointMode ? "ON" : "OFF"}
         </button>
       <br />
-      <label className="block text-sm font-medium mb-2">
+      {/* <label className="block text-sm font-medium mb-2">
         Select Shape Tool
-      </label>
+      </label> */}
       <select 
         className="dropdown w-full p-2 border rounded bg-white"
-        value={selectedShapeType}
+        value={selectedShapeType || ""}
         onChange={handleChange}
       >
-        <option value="rectangle">Rectangle</option>
-        <option value="circle">Circle</option>
-        <option value="triangle">Triangle</option>
+        <option value="" disabled>
+          Choose a shape
+        </option>
+        <option value="rectangle">■</option>
+        <option value="circle">⬤</option>
+        <option value="triangle">▲</option>
       </select>
+      <div>
+        <button
+          onClick={() => {
+            setPenSelected(false);
+            setSelectedShapeType("text");
+            setSelectClick(false);
+          }}
+        >
+          Text
+        </button>
+      </div>
       <p className="text-xs text-gray-500 mt-1">
         Current: <span className="font-semibold">{selectedShapeType}</span>
       </p>

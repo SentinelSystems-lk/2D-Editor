@@ -64,6 +64,10 @@ function PropertiesPanel() {
     updateShape(selectedShape.id, { strokeWidth: value });
   };
 
+  const handletextAlignChange = (property: string, value: string) => {
+    updateShape(selectedShape.id, { [property]: value });
+  };
+
   function hexToRgb(hex: string) {
     const res = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return res
@@ -236,53 +240,182 @@ function PropertiesPanel() {
         </div>
       </div>
 
-      {/* Scale */}
-      <div className="mb-4">
-        <h3 className="titles">Scale</h3>
-        <div className="space-y-2">
-          <div>
-            <label className="subtitles">Scale X:</label>
-            <div className="flex items-center gap-2">
+      {selectedShape.type === "text" && (
+        <div className="mb-4">
+          <h3 className="titles">Typography </h3>
+          <div className="positionxy">
+            <div>
+              <label>Font Size:</label>
               <input
-                type="range"
-                min="0.1"
-                max="3"
-                step="0.1"
-                value={selectedShape.scaleX || 1}
+                type="number"
+                value={Math.round(selectedShape.fontSize || 0)}
                 onChange={(e) =>
-                  handleInputChange("scaleX", parseFloat(e.target.value))
+                  handleInputChange("fontSize", parseFloat(e.target.value))
                 }
-                className="input-slider"
+                className="input-box"
               />
-              {/* <span className="text-xs text-gray-600 w-12">
-                {((selectedShape.scaleX || 1) * 100).toFixed(0)}%
-              </span> */}
             </div>
           </div>
-          <div>
-            <label className="subtitles">Scale Y:</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min="0.1"
-                max="3"
-                step="0.1"
-                value={selectedShape.scaleY || 1}
-                onChange={(e) =>
-                  handleInputChange("scaleY", parseFloat(e.target.value))
-                }
-                className="input-slider"
-              />
-              {/* <span className="text-xs text-gray-600 w-12">
-                {((selectedShape.scaleY || 1) * 100).toFixed(0)}%
-              </span> */}
+
+          <div className="mt-3">
+            <label className="subtitles">Text Align:</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handletextAlignChange("align", "left")}
+                className={`px-3 py-1 rounded border ${
+                  (selectedShape.align || "left") === "left"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white"
+                }`}
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect x="3" y="5" width="14" height="2" fill="currentColor" />
+                  <rect x="3" y="9" width="18" height="2" fill="currentColor" />
+                  <rect
+                    x="3"
+                    y="13"
+                    width="14"
+                    height="2"
+                    fill="currentColor"
+                  />
+                  <rect
+                    x="3"
+                    y="17"
+                    width="18"
+                    height="2"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => handletextAlignChange("align", "center")}
+                className={`px-3 py-1 rounded border ${
+                  (selectedShape.align || "left") === "center"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white"
+                }`}
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect x="5" y="5" width="14" height="2" fill="currentColor" />
+                  <rect x="3" y="9" width="18" height="2" fill="currentColor" />
+                  <rect
+                    x="5"
+                    y="13"
+                    width="14"
+                    height="2"
+                    fill="currentColor"
+                  />
+                  <rect
+                    x="3"
+                    y="17"
+                    width="18"
+                    height="2"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => handletextAlignChange("align", "right")}
+                className={`px-3 py-1 rounded border ${
+                  (selectedShape.align || "left") === "right"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white"
+                }`}
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect x="7" y="5" width="14" height="2" fill="currentColor" />
+                  <rect x="3" y="9" width="18" height="2" fill="currentColor" />
+                  <rect
+                    x="7"
+                    y="13"
+                    width="14"
+                    height="2"
+                    fill="currentColor"
+                  />
+                  <rect
+                    x="3"
+                    y="17"
+                    width="18"
+                    height="2"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Scale */}
+
+      {selectedShape.type !== "text" && (
+        <div className="mb-4">
+          <h3 className="titles">Scale</h3>
+          <div className="space-y-2">
+            <div>
+              <label className="subtitles">Scale X:</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.1"
+                  value={selectedShape.scaleX || 1}
+                  onChange={(e) =>
+                    handleInputChange("scaleX", parseFloat(e.target.value))
+                  }
+                  className="input-slider"
+                />
+                {/* <span className="text-xs text-gray-600 w-12">
+                {((selectedShape.scaleX || 1) * 100).toFixed(0)}%
+              </span> */}
+              </div>
+            </div>
+            <div>
+              <label className="subtitles">Scale Y:</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.1"
+                  value={selectedShape.scaleY || 1}
+                  onChange={(e) =>
+                    handleInputChange("scaleY", parseFloat(e.target.value))
+                  }
+                  className="input-slider"
+                />
+                {/* <span className="text-xs text-gray-600 w-12">
+                {((selectedShape.scaleY || 1) * 100).toFixed(0)}%
+              </span> */}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-4">
-        <h3 className="titles">Fill Color</h3>
+        <h3 className="titles">
+          {selectedShape.type === "text" ? "Text" : "Fill"} Color
+        </h3>
 
         {/* Color Button */}
         <button
@@ -332,11 +465,8 @@ function PropertiesPanel() {
 
       {/* Actions */}
       <div className="deletecon">
-        <button
-          onClick={handleDelete}
-          className="deletebtn"
-        >
-        Delete
+        <button onClick={handleDelete} className="deletebtn">
+          Delete
         </button>
       </div>
 
