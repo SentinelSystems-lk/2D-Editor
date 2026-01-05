@@ -1,4 +1,4 @@
-import type { Shape, ShapeType, RectangleShape, CircleShape, TriangleShape } from '../store/editorStore';
+import type { Shape, ShapeType, RectangleShape, CircleShape, TriangleShape, TextShape } from '../store/editorStore';
 
 /**
  * Creates a new shape based on the type
@@ -34,6 +34,17 @@ export const createShape = (
         width: 0,
         height: 0,
       } as TriangleShape;
+
+    case 'text':
+      return { 
+        ...baseShape, 
+        type: 'text', 
+        text: 'Double click to edit', 
+        fontSize: 20, 
+        width: 200,
+        fill: '#000000',
+        align: 'left',
+      } as TextShape;
 
       
     default:
@@ -77,6 +88,7 @@ export const updateShape = (
     
     case 'image':
     case 'glb':
+    case 'text':
       // Image and GLB shapes don't support drawing mode
       // They are created with fixed dimensions on drop
       return shape;

@@ -11,10 +11,16 @@ import {
   Transformer,
   Line,
   RegularPolygon,
+  Text,
 } from "react-konva";
 import { useCanvasStore } from "../store/editorStore";
 import { createShape, updateShape } from "../utils/shapeFactory";
-import type { Shape, ImageShape, GLBShape } from "../store/editorStore";
+import type {
+  Shape,
+  ImageShape,
+  GLBShape,
+  TextShape,
+} from "../store/editorStore";
 import { GLBRenderer } from "./GLBRender";
 
 type AlignmentLine = {
@@ -30,7 +36,8 @@ type PenLine = {
 export default function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const stageRef = useRef<Konva.Stage | null>(null);
+  // const stageRef = useRef<Konva.Stage | null>(null);
+  const stageRef = useRef<any>(null);
   const [loadedImages, setLoadedImages] = useState<
     Map<string, HTMLImageElement>
   >(new Map());
@@ -47,11 +54,17 @@ export default function Canvas() {
   const [penLines, setPenLines] = useState<PenLine[]>([]);
   const isPenDrawing = useRef(false);
 
+  const [position, setPosition] = React.useState({ x: 20, y: 20 });
+
+  const history = React.useRef([{ x: 20, y: 20 }]);
+  const historyStep = React.useRef(0);
+
   const {
     shapes,
     currentShape,
     isDrawing,
     selectedShapeType,
+    setSelectedShapeType,
     selectedShapeId,
     isPenSelected,
     isDisjointMode,
@@ -159,6 +172,15 @@ export default function Canvas() {
         height: shape.height * scaleY,
         centerX: shape.x + (shape.width * scaleX) / 2,
         centerY: shape.y + (shape.height * scaleY) / 2,
+      };
+    } else if (shape.type === "text") {
+      return {
+        x: shape.x,
+        y: shape.y,
+        width: shape.width * scaleX,
+        height: shape.fontSize * 1.5 * scaleY,
+        centerX: shape.x + (shape.width * scaleX) / 2,
+        centerY: shape.y + (shape.fontSize * 1.5 * scaleY) / 2,
       };
     } else if (shape.type === "image" || shape.type === "glb") {
       const width = (shape.width || 0) * scaleX;
@@ -296,6 +318,21 @@ export default function Canvas() {
     setAlignmentLines(lines);
   };
 
+  const handleDragundoredo = (e: {
+    target: { x: () => any; y: () => any };
+  }) => {
+    // Remove all states after current step
+    history.current = history.current.slice(0, historyStep.current + 1);
+    const pos = {
+      x: e.target.x(),
+      y: e.target.y(),
+    };
+    // Push the new state
+    history.current = history.current.concat([pos]);
+    historyStep.current += 1;
+    setPosition(pos);
+  };
+
   function handleMouseDown(e: any) {
     const stage = stageRef.current;
     if (!stage) return;
@@ -333,12 +370,10 @@ export default function Canvas() {
     setAlignmentLines([]);
 
     const { x, y } = pointerPosition;
-    const newShape = createShape(
-      selectedShapeType,
-      x,
-      y,
-      Date.now().toString()
-    );
+    // If no shape tool is selected, don't start drawing
+    if (!selectedShapeType) return;
+
+    const newShape = createShape(selectedShapeType, x, y, Date.now().toString());
 
     setCurrentShape(newShape);
     setIsDrawing(true);
@@ -401,9 +436,16 @@ export default function Canvas() {
           Math.abs(currentShape.width) > 5 && Math.abs(currentShape.height) > 5;
       }
 
+      // Ensure text shapes are treated as valid so they persist after mouseUp
+      else if (currentShape.type === "text") {
+        isValid = true;
+      }
+
       if (isValid) {
         addShape(currentShape);
         setSelectedShapeId(currentShape.id);
+        // Clear selected shape tool after use
+        setSelectedShapeType(null);
       }
     }
     clearCurrentShape();
@@ -520,7 +562,6 @@ export default function Canvas() {
   //   setAlignmentLines([]);
   // };
 
-
   const handleDragEnd = (shapeId: string, node: any) => {
     let finalX = node.x();
     let finalY = node.y();
@@ -565,7 +606,13 @@ export default function Canvas() {
       const transformedShape = shapes.find((s) => s.id === selectedShapeId);
       if (!transformedShape) return;
 
-      let adjustedShape = { ...transformedShape, x: finalX, y: finalY, scaleX, scaleY };
+      let adjustedShape = {
+        ...transformedShape,
+        x: finalX,
+        y: finalY,
+        scaleX,
+        scaleY,
+      };
 
       for (const otherShape of shapes) {
         if (otherShape.id === selectedShapeId) continue;
@@ -591,7 +638,6 @@ export default function Canvas() {
     });
   };
 
-
   const handleGLBModeToggle = (shapeId: string) => {
     setGlbInteractionModes((prev) => {
       const newModes = new Map(prev);
@@ -600,6 +646,97 @@ export default function Canvas() {
       newModes.set(shapeId, newMode);
       return newModes;
     });
+  };
+
+  const handleTextDblClick = (shape: TextShape) => {
+    const textNode = shapeRefs.current.get(shape.id);
+    if (!textNode) return;
+
+    // Hide text and transformer
+    textNode.hide();
+    if (transformerRef.current) {
+      transformerRef.current.hide();
+    }
+
+    const textPosition = textNode.absolutePosition();
+    const stageBox = stageRef.current.container().getBoundingClientRect();
+
+    const areaPosition = {
+      x: stageBox.left + textPosition.x,
+      y: stageBox.top + textPosition.y,
+    };
+
+    const textarea = document.createElement("textarea");
+    document.body.appendChild(textarea);
+
+    textarea.value = shape.text;
+    textarea.style.position = "absolute";
+    textarea.style.top = areaPosition.y + "px";
+    textarea.style.left = areaPosition.x + "px";
+    textarea.style.width = shape.width * (shape.scaleX || 1) + "px";
+    textarea.style.fontSize = shape.fontSize + "px";
+    textarea.style.border = "none";
+    textarea.style.padding = "0px";
+    textarea.style.margin = "0px";
+    textarea.style.overflow = "hidden";
+    textarea.style.background = "none";
+    textarea.style.outline = "none";
+    textarea.style.resize = "none";
+    textarea.style.fontFamily = shape.fontFamily || "Arial";
+    textarea.style.transformOrigin = "left top";
+    textarea.style.textAlign = shape.align || "left";
+    textarea.style.color = shape.fill || "#000000";
+    textarea.style.lineHeight = "1.2";
+
+    const rotation = shape.rotation || 0;
+    let transform = "";
+    if (rotation) {
+      transform += "rotateZ(" + rotation + "deg)";
+    }
+    textarea.style.transform = transform;
+
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + 3 + "px";
+    textarea.focus();
+
+    function removeTextarea() {
+      textarea.parentNode?.removeChild(textarea);
+      window.removeEventListener("click", handleOutsideClick);
+      if (textNode && typeof textNode.show === "function") {
+        textNode.show();
+      }
+      if (transformerRef.current) {
+        transformerRef.current.show();
+        transformerRef.current.forceUpdate();
+      }
+    }
+
+    textarea.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        updateShapeInStore(shape.id, { text: textarea.value });
+        removeTextarea();
+      }
+      if (e.key === "Escape") {
+        removeTextarea();
+      }
+    });
+
+    textarea.addEventListener("input", function () {
+      textarea.style.height = "auto";
+      textarea.style.height = textarea.scrollHeight + 3 + "px";
+    });
+
+    function handleOutsideClick(e: MouseEvent) {
+      if (e.target !== textarea) {
+        updateShapeInStore(shape.id, { text: textarea.value });
+        removeTextarea();
+      }
+    }
+
+    setTimeout(() => {
+      window.addEventListener("click", handleOutsideClick);
+    }, 100);
   };
 
   const renderShape = (shape: Shape, draggable = false) => {
@@ -620,6 +757,7 @@ export default function Canvas() {
       stroke: shape.stroke || "#000000ff",
       strokeWidth: shape.strokeWidth || 0,
       opacity: shape.opacity ?? 1,
+
       onClick: () => {
         // Only select shapes if not in pen mode
         if (!isPenSelected) {
@@ -640,6 +778,9 @@ export default function Canvas() {
       onDragEnd: (e: any) => {
         if (!isPenSelected) {
           handleDragEnd(shape.id, e.target);
+        }
+        {
+          handleDragundoredo(e);
         }
       },
       ref: (node: Konva.Node | null) => {
@@ -696,6 +837,27 @@ export default function Canvas() {
           stroke={selectedShapeId === shape.id ? "#0066ff" : "transparent"}
           strokeWidth={1}
           dash={selectedShapeId === shape.id ? [4, 4] : undefined}
+        />
+      );
+    }
+    if (shape.type === "text") {
+      return (
+        <Text
+          {...commonProps}
+          text={shape.text}
+          fontSize={shape.fontSize}
+          fontFamily={shape.fontFamily || "Arial"}
+          align={shape.align || "left"}
+          width={shape.width}
+          onDblClick={() => handleTextDblClick(shape)}
+          onDblTap={() => handleTextDblClick(shape)}
+          onTransform={(e: any) => {
+            const node = e.target;
+            node.setAttrs({
+              width: node.width() * node.scaleX(),
+              scaleX: 1,
+            });
+          }}
         />
       );
     }
