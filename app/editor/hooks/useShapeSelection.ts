@@ -6,13 +6,26 @@ export function useShapeSelection(
   selectedShapeId: string | null,
   shapes: Shape[],
   shapeRefs: React.MutableRefObject<Map<string, Konva.Node>>,
-  transformerRef: React.RefObject<Konva.Transformer | null>,
-  glbInteractionModes: Map<string, "konva" | "threejs">
+  transformerRef: React.RefObject<Konva.Transformer>,
+  glbInteractionModes: Map<string, "konva" | "threejs">,
+  selectedIds?: string[]  // ✅ Add multi-select support
 ) {
   useEffect(() => {
     const transformer = transformerRef.current;
     if (!transformer) return;
 
+    // ✅ MULTI-SELECTION MODE
+    if (selectedIds && selectedIds.length > 0) {
+      const nodes = selectedIds
+        .map((id) => shapeRefs.current.get(id))
+        .filter((node): node is Konva.Node => node !== undefined);
+      
+      transformer.nodes(nodes);
+      transformer.getLayer()?.batchDraw();
+      return;
+    }
+
+    // ✅ SINGLE SELECTION MODE
     if (selectedShapeId) {
       const shape = shapes.find((s) => s.id === selectedShapeId);
 
@@ -35,5 +48,5 @@ export function useShapeSelection(
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
     }
-  }, [selectedShapeId, shapes, shapeRefs, transformerRef, glbInteractionModes]);
+  }, [selectedShapeId, selectedIds, shapes, shapeRefs, transformerRef, glbInteractionModes]);
 }

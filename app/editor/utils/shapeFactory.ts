@@ -1,4 +1,4 @@
-import type { Shape, ShapeType, RectangleShape, CircleShape, TriangleShape, TextShape } from '../store/editorStore';
+import type { Shape, ShapeType, RectangleShape, CircleShape, TriangleShape, TextShape, PolygonShape } from '../store/editorStore';
 
 /**
  * Creates a new shape based on the type
@@ -46,6 +46,17 @@ export const createShape = (
         align: 'left',
       } as TextShape;
 
+    case 'polygon':
+      return {
+        ...baseShape,
+        type: 'polygon',
+        radius: 0,
+        sides: 5,
+      } as PolygonShape;
+
+    case 'image':
+    case 'glb':
+
       
     default:
       throw new Error(`Unknown shape type: ${type}`);
@@ -85,6 +96,14 @@ export const updateShape = (
         width: currentX - shape.x,
         height: currentY - shape.y,
       } as TriangleShape;
+
+    case 'polygon':
+      return{
+        ...shape,
+        radius: Math.sqrt(Math.pow(currentX - shape.x, 2) + Math.pow(currentY - shape.y, 2)),
+        sides: 5,
+      } as PolygonShape;
+      
     
     case 'image':
     case 'glb':

@@ -47,6 +47,7 @@ export const renderShape = ({
     stroke: shape.stroke || "#000000ff",
     strokeWidth: shape.strokeWidth || 0,
     opacity: shape.opacity ?? 1,
+    
 
     onClick: () => {
       if (!isPenSelected) {
@@ -94,6 +95,16 @@ export const renderShape = ({
         sides={3}
         radius={shape.width}
         rotation={shape.rotation}
+      />
+    );
+  }
+
+  if (shape.type === "polygon") {
+    return (
+      <RegularPolygon
+        {...commonProps}
+        sides={shape.sides}
+        radius={shape.radius}
       />
     );
   }

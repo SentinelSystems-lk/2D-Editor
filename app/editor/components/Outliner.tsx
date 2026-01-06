@@ -77,6 +77,7 @@ function ShapeDropdown() {
         <option value="rectangle">■</option>
         <option value="circle">⬤</option>
         <option value="triangle">▲</option>
+        <option value="polygon">⬟</option>
       </select>
       <div>
         <button
@@ -96,7 +97,6 @@ function ShapeDropdown() {
         >
           Line
         </button>
-        {selectedLineId}
       </div>
       <p className="text-xs text-gray-500 mt-1">
         Current: <span className="font-semibold">{selectedShapeType}</span>

@@ -55,6 +55,9 @@ export function useShapeDrawing(stageRef: React.RefObject<any>) {
       } else if (currentShape.type === "triangle") {
         isValid =
           Math.abs(currentShape.width) > 5 && Math.abs(currentShape.height) > 5;
+      } else if (currentShape.type === "polygon") {
+        // polygon uses radius
+        isValid = (currentShape as any).radius > 5;
       } else if (currentShape.type === "text") {
         isValid = true;
       }

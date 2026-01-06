@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type Konva from "konva";
 
 // Shape Types
-export type ShapeType = "rectangle" | "circle" | "triangle" | "text";
+export type ShapeType = "rectangle" | "circle" | "triangle" | "text" | "image" | "glb" | "polygon";
 
 export type BaseShape = {
   id: string;
@@ -17,6 +17,12 @@ export type BaseShape = {
   scaleX?: number;
   scaleY?: number;
 };
+
+export type PolygonShape = BaseShape &{
+  type: "polygon";
+  radius: number;
+  sides: number;
+}
 
 export type RectangleShape = BaseShape & {
   type: "rectangle";
@@ -69,10 +75,14 @@ export type Shape =
   | ImageShape
   | GLBShape
   | TextShape
-  | TriangleShape;
+  | TriangleShape
+  | PolygonShape;
+
 
 
 export type LineType = {
+  alignToXAxis: any;
+  alignToYAxis: any;
   id: string;
   points: number[]; // [x1, y1, x2, y2]
   stroke: string;
@@ -104,6 +114,8 @@ type CanvasStore = {
   addLine: (line: LineType) => void;
   updateLine: (id: string, updates: Partial<LineType>) => void;
   deleteLine: (id: string) => void;
+  alignLineToXAxis: (id: string) => void;
+  alignToYAxis: (id: string) => void;
 
   // Selection
   selectedShapeId: string | null;
@@ -309,6 +321,52 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }));
     get().saveToHistory();
   },
+
+  // Align a line horizontally (make it parallel to X axis)
+  alignLineToXAxis: (id: string) => {
+    set((state) => {
+      const line = state.lines.find((l) => l.id === id);
+      if (!line) return {} as Partial<CanvasStore>;
+
+      // Compute average Y of the two endpoints (points: [x1,y1,x2,y2])
+      const points = [...line.points];
+      if (points.length >= 4) {
+        const y1 = points[1];
+        const y2 = points[3];
+        const avgY = (y1 + y2) / 2;
+        points[1] = avgY;
+        points[3] = avgY;
+      }
+
+      return {
+        lines: state.lines.map((l) => (l.id === id ? { ...l, points } : l)),
+      } as Partial<CanvasStore>;
+    });
+    get().saveToHistory();
+  },
+
+  alignToYAxis: (id: string) => {
+    set((state) => {
+      const line = state.lines.find((l) => l.id === id);
+      if (!line) return {} as Partial<CanvasStore>;
+
+      // Compute average X of the two endpoints (points: [x1,y1,x2,y2])
+      const points = [...line.points];
+      if (points.length >= 4) {
+        const x1 = points[0];
+        const x2 = points[2];
+        const avgX = (x1 + x2) / 2;
+        points[0] = avgX;
+        points[2] = avgX;
+      }
+
+      return {
+        lines: state.lines.map((l) => (l.id === id ? { ...l, points } : l)),
+      } as Partial<CanvasStore>;
+    });
+    get().saveToHistory();
+  },
+
 
   deleteLine: (id) => {
     set((state) => ({

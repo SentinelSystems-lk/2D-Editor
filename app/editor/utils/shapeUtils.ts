@@ -41,6 +41,15 @@ export const getShapeBounds = (shape: Shape) => {
       centerX: shape.x + (shape.width * scaleX) / 2,
       centerY: shape.y + (shape.fontSize * 1.5 * scaleY) / 2,
     };
+  } else if (shape.type === "polygon") {
+    return {
+      x: shape.x,
+      y: shape.y,
+      width: shape.radius * 2 * scaleX,
+      height: shape.radius * 2 * scaleY,
+      centerX: shape.x + shape.radius * scaleX,
+      centerY: shape.y + shape.radius * scaleY,
+    };
   } else if (shape.type === "image" || shape.type === "glb") {
     const width = (shape.width || 0) * scaleX;
     const height = (shape.height || 0) * scaleY;
