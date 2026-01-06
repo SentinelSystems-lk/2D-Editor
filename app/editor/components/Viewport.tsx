@@ -48,7 +48,9 @@ export default function Canvas() {
   } = useCanvasStore();
 
   const { size } = useCanvasSize(containerRef);
+
   const { loadedImages } = useImageLoader(shapes);
+  
   const {
     glbInteractionModes,
     glbCanvases,
@@ -56,11 +58,15 @@ export default function Canvas() {
     handleGLBModeToggle,
   } = useGLBInteraction();
 
-  const { alignmentLines, checkAlignment, clearAlignment } = useAlignment(
-    shapes,
-    size
-  );
-  const { resolveCollisions } = useCollision(shapes);
+  const { 
+    alignmentLines, 
+    checkAlignment, 
+    clearAlignment 
+  } = useAlignment(shapes,size);
+
+  const { 
+    resolveCollisions 
+  } = useCollision(shapes);
 
   // Selection Tool Hook
   const {
@@ -73,8 +79,12 @@ export default function Canvas() {
     getSelectionBox,
   } = useSelectionTool(isSelectClicked, shapes, stageRef);
 
-  const { penLines, handlePenMouseDown, handlePenMouseMove, handlePenMouseUp } =
-    usePenDrawing(stageRef, isPenSelected);
+  const { 
+    penLines, 
+    handlePenMouseDown, 
+    handlePenMouseMove, 
+    handlePenMouseUp 
+  } = usePenDrawing(stageRef, isPenSelected);
 
   const {
     handleLineMouseDown,
