@@ -45,6 +45,10 @@ function ShapeDropdown() {
     console.log(isLineSelected);
   }
 
+  function handleGroup(){
+
+  }
+
   
 
 
@@ -96,6 +100,13 @@ function ShapeDropdown() {
          onClick={handleLine}
         >
           Line
+        </button>
+      </div>
+      <div>
+        <button
+        onClick ={handleGroup}
+        >
+          Group
         </button>
       </div>
       <p className="text-xs text-gray-500 mt-1">

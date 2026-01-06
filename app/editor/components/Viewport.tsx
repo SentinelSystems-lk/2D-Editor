@@ -77,7 +77,7 @@ export default function Canvas() {
     handleSelectionMouseMove,
     handleSelectionMouseUp,
     getSelectionBox,
-  } = useSelectionTool(isSelectClicked, shapes, stageRef);
+  } = useSelectionTool(isSelectClicked, shapes, lines, stageRef);
 
   const { 
     penLines, 

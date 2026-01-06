@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import type Konva from "konva";
 import type { Shape } from "../store/editorStore";
+import {LineType} from "../store/editorStore";
 
 type SelectionRectangle = {
   visible: boolean;
@@ -27,7 +28,7 @@ const getCorner = (
   return { x, y };
 };
 
-const getClientRect = (element: Shape) => {
+const getClientRect = (element: Shape ) => {
   const { x, y, rotation = 0 } = element;
   let width = 0;
   let height = 0;
@@ -48,7 +49,14 @@ const getClientRect = (element: Shape) => {
   } else if (element.type === "image" || element.type === "glb") {
     width = (element.width || 0) * (element.scaleX || 1);
     height = (element.height || 0) * (element.scaleY || 1);
+  } else if (element.type === "polygon") {
+    const radius = element.radius * (element.scaleX || 1);
+    width = radius * 2;
+    height = radius * 2;
+  } else {
+    return { x, y, width, height };
   }
+
 
   const rad = degToRad(rotation);
   const p1 = getCorner(x, y, 0, 0, rad);
@@ -69,6 +77,23 @@ const getClientRect = (element: Shape) => {
   };
 };
 
+const getClientRectToLine = (line: LineType) => {
+    const xValues = [line.points[0], line.points[2]];
+    const yValues = [line.points[1], line.points[3]];
+
+    const minX = Math.min(...xValues);
+    const minY = Math.min(...yValues);
+    const maxX = Math.max(...xValues);
+    const maxY = Math.max(...yValues);
+
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  };
+
 // Check if two rectangles intersect
 const haveIntersection = (r1: any, r2: any) => {
   return !(
@@ -82,6 +107,7 @@ const haveIntersection = (r1: any, r2: any) => {
 export function useSelectionTool(
   isSelectClicked: boolean,
   shapes: Shape[],
+  lines: LineType[],
   stageRef: React.RefObject<any>
 ) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -96,7 +122,7 @@ export function useSelectionTool(
 
   const isSelecting = useRef(false);
 
-  // Handle click on stage or shapes
+  // Handle click on stage or shapes or lines
   const handleSelectionClick = useCallback(
     (e: any) => {
       if (!isSelectClicked) return;
@@ -113,11 +139,19 @@ export function useSelectionTool(
       }
 
       const clickedId = e.target.id();
+      
       if (!clickedId) return;
 
       // Check if clicked on a shape
       const clickedShape = shapes.find((s) => s.id === clickedId);
-      if (!clickedShape) return;
+      if (!clickedShape) {
+        // Check if clicked on a line
+        const clickedLine = lines.find((l) => l.id === clickedId);
+        if (!clickedLine) return;
+        setSelectedIds([clickedId]);
+        return;
+      }
+
 
       // Check if modifier keys are pressed (Shift/Ctrl/Cmd)
       const metaPressed = e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey;
@@ -204,7 +238,7 @@ export function useSelectionTool(
       height: Math.abs(selectionRectangle.y2 - selectionRectangle.y1),
     };
 
-    // Find all shapes that intersect with selection box
+    // Find all shapes and that intersect with selection box
     const selected = shapes.filter((shape) => {
       return haveIntersection(selBox, getClientRect(shape));
     });
