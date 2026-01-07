@@ -118,6 +118,7 @@ export default function Canvas() {
     if (isSelectClicked) {
       const clickedOnShape = e.target !== e.target.getStage();
       if (clickedOnShape) {
+        console.log("Clicked on shape during selection mode");
         const id = e.target.id();
         const isAlreadySelected = selectedIds.includes(id);
 
