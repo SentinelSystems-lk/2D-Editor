@@ -90,11 +90,23 @@ export type LineType = {
   opacity?: number;
 };
 
+export type GroupType = {
+  id: string;
+  name?: string;
+  childIds: string[]; // IDs of shapes and lines in this group
+  x: number;
+  y: number;
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
+};
+
 // History Type
 
 type HistoryState = {
   shapes: Shape[];
   lines: LineType[];
+  groups: GroupType[];
 };
 
 // Store Type
@@ -116,6 +128,13 @@ type CanvasStore = {
   deleteLine: (id: string) => void;
   alignLineToXAxis: (id: string) => void;
   alignToYAxis: (id: string) => void;
+
+  // Groups
+  groups: GroupType[];
+  addGroup: (group: GroupType) => void;
+  updateGroup: (id: string, updates: Partial<GroupType>) => void;
+  deleteGroup: (id: string) => void;
+  ungroupItems: (groupId: string) => void;
 
   // Selection
   selectedShapeId: string | null;
@@ -156,6 +175,9 @@ type CanvasStore = {
 
   isDisjointMode: boolean;
   setDisjointMode: (mode: boolean) => void;
+
+  isGroup: boolean;
+  setGroup: (group: boolean) => void;
 
   clearCurrentShape: () => void;
   clearCurrentLine: () => void;
@@ -223,7 +245,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   clearCurrentLine: () => set({ currentLine: null, isDrawing: false }),
 
   // History
-  history: [{ shapes: [] , lines: []}],
+  history: [{ shapes: [] , lines: [], groups: []}],
   historyStep: 0,
   canUndo: false,
   canRedo: false,
@@ -232,7 +254,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   saveToHistory: () => {
     const state = get();
     const currentHistory = state.history.slice(0, state.historyStep + 1);
-    const newHistory = [...currentHistory, { shapes: [...state.shapes] , lines: [...state.lines]}];
+    const newHistory = [...currentHistory, { shapes: [...state.shapes] , lines: [...state.lines], groups: [...state.groups]}];
 
     set({
       history: newHistory,
@@ -375,5 +397,38 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }));
     get().saveToHistory();
   },
+
+  isGroup: false,
+  setGroup: (group) => set({ isGroup: group }),
+
+  groups: [],
+
+  addGroup: (group) =>
+    set((state) => ({
+      groups: [...state.groups, group],
+    })),
+    
+  updateGroup: (id, updates) =>
+    set((state) => ({
+      groups: state.groups.map((g) =>
+        g.id === id ? { ...g, ...updates } : g
+      ),
+    })),
+    
+  deleteGroup: (id) =>
+    set((state) => ({
+      groups: state.groups.filter((g) => g.id !== id),
+    })),
+    
+  ungroupItems: (groupId) =>
+    set((state) => {
+      const group = state.groups.find((g) => g.id === groupId);
+      if (!group) return state;
+      
+      // Remove group but keep the items
+      return {
+        groups: state.groups.filter((g) => g.id !== groupId),
+      };
+    }),
 
 }));
