@@ -19,8 +19,6 @@ function PropertiesPanel() {
   const selectedShape = shapes.find((s) => s.id === selectedShapeId);
   const selectedLine = lines.find((s) => s.id === selectedLineId);
 
-  console.log("Selected Line in PropertiesPanel:", selectedLine);
-
   const [showFillPicker, setShowFillPicker] = useState(false);
   const fillPickerRef = useRef<HTMLDivElement>(null);
 

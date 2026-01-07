@@ -50,7 +50,7 @@ export default function Canvas() {
   const { size } = useCanvasSize(containerRef);
 
   const { loadedImages } = useImageLoader(shapes);
-  
+
   const {
     glbInteractionModes,
     glbCanvases,
@@ -58,15 +58,12 @@ export default function Canvas() {
     handleGLBModeToggle,
   } = useGLBInteraction();
 
-  const { 
-    alignmentLines, 
-    checkAlignment, 
-    clearAlignment 
-  } = useAlignment(shapes,size);
+  const { alignmentLines, checkAlignment, clearAlignment } = useAlignment(
+    shapes,
+    size
+  );
 
-  const { 
-    resolveCollisions 
-  } = useCollision(shapes);
+  const { resolveCollisions } = useCollision(shapes);
 
   // Selection Tool Hook
   const {
@@ -77,14 +74,10 @@ export default function Canvas() {
     handleSelectionMouseMove,
     handleSelectionMouseUp,
     getSelectionBox,
-  } = useSelectionTool(isSelectClicked, shapes, stageRef);
+  } = useSelectionTool(isSelectClicked, shapes, lines, stageRef);
 
-  const { 
-    penLines, 
-    handlePenMouseDown, 
-    handlePenMouseMove, 
-    handlePenMouseUp 
-  } = usePenDrawing(stageRef, isPenSelected);
+  const { penLines, handlePenMouseDown, handlePenMouseMove, handlePenMouseUp } =
+    usePenDrawing(stageRef, isPenSelected);
 
   const {
     handleLineMouseDown,
@@ -125,12 +118,25 @@ export default function Canvas() {
     if (isSelectClicked) {
       const clickedOnShape = e.target !== e.target.getStage();
       if (clickedOnShape) {
+        console.log("Clicked on shape during selection mode");
         const id = e.target.id();
         const isAlreadySelected = selectedIds.includes(id);
 
         // ✅ If clicking on an already selected shape, allow dragging
         if (isAlreadySelected) {
           return; // Don't interfere - let drag happen
+        }
+
+        const clickedLine = lines.find((line) => line.id === id);
+        if (clickedLine) {
+          // If line is already selected, allow dragging
+          if (isAlreadySelected) {
+            return; // Don't interfere - let drag happen
+          }
+          // Otherwise, handle line selection through the selection tool
+          handleSelectionClick(e);
+          handleSelectionMouseDown(e);
+          return;
         }
       }
       handleSelectionClick(e);
@@ -239,15 +245,127 @@ export default function Canvas() {
   };
 
   const handleDragMove = (shapeId: string, node: Konva.Node) => {
-    // If this shape is part of multi-selection
+    // Check if this is a line
+    const isLine = lines.some((l) => l.id === shapeId);
+
+    if (isLine) {
+      // Lines are dragged via onDragMove on the Line component itself
+      // The 'node' here would be the Line, and we get its position differently
+      const draggedLine = lines.find((l) => l.id === shapeId);
+      if (!draggedLine) return;
+
+      // Handle line multi-selection dragging
+      if (selectedIds.length > 1 && selectedIds.includes(shapeId)) {
+        if (!isDraggingGroup.current) {
+          // First move: Save all starting positions
+          isDraggingGroup.current = true;
+          selectedIds.forEach((id) => {
+            const shape = shapes.find((sh) => sh.id === id);
+            const line = lines.find((l) => l.id === id);
+
+            if (shape) {
+              dragStartPositions.current.set(id, { x: shape.x, y: shape.y });
+            } else if (line) {
+              // For lines, store the first point as reference
+              dragStartPositions.current.set(id, {
+                x: line.points[0],
+                y: line.points[1],
+              });
+            }
+          });
+        }
+
+        const startPos = dragStartPositions.current.get(shapeId);
+        if (!startPos) return;
+
+        // ✅ Calculate delta from the dragged line's current position
+        const deltaX = draggedLine.points[0] + node.x() - startPos.x;
+        const deltaY = draggedLine.points[1] + node.y() - startPos.y;
+
+        // const deltaX = node.x();
+        // const deltaY = node.y();
+
+        // Calculate delta based on current node position
+        // const deltaX =
+        //   currentNodeX - startPos.x + draggedLine.points[0] - startPos.x;
+        // const deltaY =
+        //   currentNodeY - startPos.y + draggedLine.points[1] - startPos.y;
+
+        // Move ALL other selected items by the same amount
+        selectedIds.forEach((id) => {
+          if (id === shapeId) return; // Skip the one being dragged
+
+          const otherStartPos = dragStartPositions.current.get(id);
+          if (!otherStartPos) return;
+
+          const otherShape = shapes.find((s) => s.id === id);
+          const otherLine = lines.find((l) => l.id === id);
+
+          if (otherShape) {
+            const otherNode = shapeRefs.current.get(id);
+            if (otherNode) {
+              otherNode.x(otherStartPos.x + deltaX);
+              otherNode.y(otherStartPos.y + deltaY);
+            }
+          } else if (otherLine) {
+            // Move line by calculating new points
+            const originalWidth = otherLine.points[2] - otherLine.points[0];
+            const originalHeight = otherLine.points[3] - otherLine.points[1];
+
+            const newPoints = [
+              otherStartPos.x + deltaX,
+              otherStartPos.y + deltaY,
+              otherStartPos.x + deltaX + originalWidth,
+              otherStartPos.y + deltaY + originalHeight,
+            ];
+
+            useCanvasStore.getState().updateLine(id, { points: newPoints });
+          }
+        });
+      }
+
+      // Check alignment for the dragged line
+      const [x1, y1, x2, y2] = draggedLine.points;
+      const x = Math.min(x1, x2) + node.x();
+      const y = Math.min(y1, y2) + node.y();
+      const width = Math.abs(x2 - x1);
+      const height = Math.abs(y2 - y1);
+
+      checkAlignment({
+        id: shapeId,
+        type: "rectangle",
+        x,
+        y,
+        width,
+        height,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        fill: "",
+        stroke: "",
+      } as Shape);
+
+      return;
+    }
+
+    // ===== SHAPE DRAGGING LOGIC =====
+
+    // Handle shape multi-selection dragging
     if (selectedIds.length > 1 && selectedIds.includes(shapeId)) {
       if (!isDraggingGroup.current) {
         // First move: Save all starting positions
         isDraggingGroup.current = true;
         selectedIds.forEach((id) => {
-          const s = shapes.find((sh) => sh.id === id);
-          if (s) {
-            dragStartPositions.current.set(id, { x: s.x, y: s.y });
+          const shape = shapes.find((sh) => sh.id === id);
+          const line = lines.find((l) => l.id === id);
+
+          if (shape) {
+            dragStartPositions.current.set(id, { x: shape.x, y: shape.y });
+          } else if (line) {
+            dragStartPositions.current.set(id, {
+              x: line.points[0],
+              y: line.points[1],
+            });
           }
         });
       }
@@ -255,23 +373,44 @@ export default function Canvas() {
       // Calculate how much the dragged shape moved
       const startPos = dragStartPositions.current.get(shapeId);
       if (!startPos) return;
+
       const deltaX = node.x() - startPos.x;
       const deltaY = node.y() - startPos.y;
 
-      // Move ALL other selected shapes by the same amount
+      // Move ALL other selected items by the same amount
       selectedIds.forEach((id) => {
         if (id === shapeId) return; // Skip the one being dragged
 
-        const otherNode = shapeRefs.current.get(id);
         const otherStartPos = dragStartPositions.current.get(id);
+        if (!otherStartPos) return;
 
-        if (otherNode && otherStartPos) {
-          otherNode.x(otherStartPos.x + deltaX); // Move by delta
-          otherNode.y(otherStartPos.y + deltaY);
+        const otherShape = shapes.find((s) => s.id === id);
+        const otherLine = lines.find((l) => l.id === id);
+
+        if (otherShape) {
+          const otherNode = shapeRefs.current.get(id);
+          if (otherNode) {
+            otherNode.x(otherStartPos.x + deltaX);
+            otherNode.y(otherStartPos.y + deltaY);
+          }
+        } else if (otherLine) {
+          // Calculate delta relative to original line position
+          const originalDeltaX = otherLine.points[2] - otherLine.points[0];
+          const originalDeltaY = otherLine.points[3] - otherLine.points[1];
+
+          const newPoints = [
+            otherStartPos.x + deltaX,
+            otherStartPos.y + deltaY,
+            otherStartPos.x + deltaX + originalDeltaX,
+            otherStartPos.y + deltaY + originalDeltaY,
+          ];
+
+          useCanvasStore.getState().updateLine(id, { points: newPoints });
         }
       });
     }
 
+    // Get shape for alignment check
     const shape = shapes.find((s) => s.id === shapeId);
     if (!shape) return;
 
@@ -281,50 +420,151 @@ export default function Canvas() {
       y: node.y(),
     };
 
-    // Check alignment as normal
+    // Check alignment
     checkAlignment(updatedShape);
   };
 
   const handleDragEnd = (shapeId: string, node: any) => {
+    const isLine = lines.some((l) => l.id === shapeId);
+
+    if (isLine) {
+      // Handle line drag end
+      if (selectedIds.length > 1 && selectedIds.includes(shapeId)) {
+        const draggedLine = lines.find((l) => l.id === shapeId);
+        if (!draggedLine) return;
+
+        const startPos = dragStartPositions.current.get(shapeId);
+        if (startPos) {
+          // Calculate delta from node position (not stored points)
+          const deltaX = draggedLine.points[0] + node.x() - startPos.x;
+          const deltaY = draggedLine.points[1] + node.y() - startPos.y;
+
+          // Update ALL selected items in the store
+          selectedIds.forEach((id) => {
+            const otherStartPos = dragStartPositions.current.get(id);
+            if (!otherStartPos) return;
+
+            const otherShape = shapes.find((s) => s.id === id);
+            const otherLine = lines.find((l) => l.id === id);
+
+            if (otherShape) {
+              let newX = otherStartPos.x + deltaX;
+              let newY = otherStartPos.y + deltaY;
+
+              // Apply collision detection if enabled
+              if (isDisjointMode) {
+                const resolved = resolveCollisions(id, newX, newY);
+                newX = resolved.x;
+                newY = resolved.y;
+              }
+
+              updateShapeInStore(id, { x: newX, y: newY });
+            } else if (otherLine) {
+              const originalLine = lines.find((l) => l.id === id);
+              if (!originalLine) return;
+
+              // Get original dimensions when drag started
+              const originalWidth =
+                originalLine.points[2] - originalLine.points[0];
+              const originalHeight =
+                originalLine.points[3] - originalLine.points[1];
+
+              const newPoints = [
+                otherStartPos.x + deltaX,
+                otherStartPos.y + deltaY,
+                otherStartPos.x + deltaX + originalWidth,
+                otherStartPos.y + deltaY + originalHeight,
+              ];
+
+              useCanvasStore.getState().updateLine(id, { points: newPoints });
+            }
+          });
+
+          node.x(0);
+          node.y(0);
+
+          isDraggingGroup.current = false;
+          dragStartPositions.current.clear();
+        }
+      }
+      // Single line drag end is handled by handleLineDragEnd
+
+      clearAlignment();
+      return;
+    }
+
+    // ===== SHAPE DRAG END LOGIC =====
+
     let finalX = node.x();
     let finalY = node.y();
-
-    if (isDisjointMode) {
-      const resolved = resolveCollisions(shapeId, finalX, finalY);
-      finalX = resolved.x;
-      finalY = resolved.y;
-    }
 
     if (selectedIds.length > 1 && selectedIds.includes(shapeId)) {
       const startPos = dragStartPositions.current.get(shapeId);
       if (startPos) {
+        // Apply collision to dragged shape first
+        if (isDisjointMode) {
+          const resolved = resolveCollisions(shapeId, finalX, finalY);
+          finalX = resolved.x;
+          finalY = resolved.y;
+          node.x(finalX);
+          node.y(finalY);
+        }
+
         const deltaX = finalX - startPos.x;
         const deltaY = finalY - startPos.y;
 
-      // Update ALL selected shapes in the store
-      selectedIds.forEach((id) => {
-        const otherStartPos = dragStartPositions.current.get(id);
-        if (otherStartPos) {
-          let newX = otherStartPos.x + deltaX;
-          let newY = otherStartPos.y + deltaY;
+        // Update ALL selected items in the store
+        selectedIds.forEach((id) => {
+          const otherStartPos = dragStartPositions.current.get(id);
+          if (!otherStartPos) return;
 
-          // Apply collision detection if enabled
-          if (isDisjointMode) {
-            const resolved = resolveCollisions(id, newX, newY);
-            newX = resolved.x;
-            newY = resolved.y;
+          const otherShape = shapes.find((s) => s.id === id);
+          const otherLine = lines.find((l) => l.id === id);
+
+          if (otherShape) {
+            let newX = otherStartPos.x + deltaX;
+            let newY = otherStartPos.y + deltaY;
+
+            // Apply collision detection if enabled
+            if (isDisjointMode) {
+              const resolved = resolveCollisions(id, newX, newY);
+              newX = resolved.x;
+              newY = resolved.y;
+            }
+
+            updateShapeInStore(id, { x: newX, y: newY });
+          } else if (otherLine) {
+            // Preserve line shape by maintaining distance between endpoints
+            const originalDeltaX = otherLine.points[2] - otherLine.points[0];
+            const originalDeltaY = otherLine.points[3] - otherLine.points[1];
+
+            const newPoints = [
+              otherStartPos.x + deltaX,
+              otherStartPos.y + deltaY,
+              otherStartPos.x + deltaX + originalDeltaX,
+              otherStartPos.y + deltaY + originalDeltaY,
+            ];
+
+            useCanvasStore.getState().updateLine(id, { points: newPoints });
           }
-
-          updateShapeInStore(id, { x: newX, y: newY });
-        }
-      });
+        });
 
         isDraggingGroup.current = false;
         dragStartPositions.current.clear();
       }
+    } else {
+      // Single shape update
+      if (isDisjointMode) {
+        const resolved = resolveCollisions(shapeId, finalX, finalY);
+        finalX = resolved.x;
+        finalY = resolved.y;
+        node.x(finalX);
+        node.y(finalY);
+      }
+
+      updateShapeInStore(shapeId, { x: finalX, y: finalY });
     }
 
-    updateShapeInStore(shapeId, { x: finalX, y: finalY });
     clearAlignment();
   };
 
@@ -411,6 +651,10 @@ export default function Canvas() {
       );
       finalX = resolved.x;
       finalY = resolved.y;
+
+      // Update node position after collision resolution
+      node.x(finalX);
+      node.y(finalY);
     }
 
     updateShapeInStore(selectedShapeId, {
@@ -522,6 +766,7 @@ export default function Canvas() {
             {lines.map((line) => {
               const [x1, y1, x2, y2] = line.points;
               const isSelected = selectedLineId === line.id;
+              const isInMultiSelect = selectedIds.includes(line.id);
 
               return (
                 <React.Fragment key={line.id}>
@@ -534,13 +779,33 @@ export default function Canvas() {
                     lineJoin="round"
                     draggable={
                       !isPenSelected &&
-                      !isSelectClicked &&
+                      (!isSelectClicked || selectedIds.includes(line.id)) && // ✅ Allow drag if in selectedIds
                       !isControlPointDragging.current
                     }
-                    onDragMove={handleLineDragMoveWithAlignment}
-                    onDragEnd={(e) =>
-                      handleLineDragEndWithAlignment(line.id, e)
-                    }
+                    onDragMove={(e) => {
+                      // ✅ If line is in multi-selection, use the main drag handler
+                      if (
+                        selectedIds.length > 1 &&
+                        selectedIds.includes(line.id)
+                      ) {
+                        handleDragMove(line.id, e.target);
+                      } else {
+                        // Single line drag - use line-specific handler
+                        handleLineDragMoveWithAlignment(e);
+                      }
+                    }}
+                    onDragEnd={(e) => {
+                      // ✅ If line is in multi-selection, use the main drag end handler
+                      if (
+                        selectedIds.length > 1 &&
+                        selectedIds.includes(line.id)
+                      ) {
+                        handleDragEnd(line.id, e.target);
+                      } else {
+                        // Single line drag - use line-specific handler
+                        handleLineDragEndWithAlignment(line.id, e);
+                      }
+                    }}
                     onClick={() => {
                       if (!isSelectClicked) {
                         setSelectedLineId(line.id);
@@ -548,18 +813,33 @@ export default function Canvas() {
                         setSelectedIds([]);
                       }
                     }}
-                    shadowColor={isSelected ? "#0066ff" : undefined}
-                    shadowBlur={isSelected ? 10 : 0}
+                    onMouseEnter={(e) => {
+                      const container = e.target.getStage()?.container();
+                      if (container) {
+                        container.style.cursor = "move";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      const container = e.target.getStage()?.container();
+                      if (container) {
+                        container.style.cursor = "default";
+                      }
+                    }}
+                    shadowColor={
+                      isSelected || isInMultiSelect ? "#0066ff" : undefined
+                    }
+                    shadowBlur={isSelected || isInMultiSelect ? 10 : 0}
+                    opacity={isInMultiSelect ? 0.8 : 1}
                   />
 
-                  {isSelected && (
+                  {selectedLineId === line.id && !isInMultiSelect && (
                     <>
                       {/* START POINT */}
                       <Circle
                         x={x1}
                         y={y1}
                         radius={6}
-                        fill="#0066ff"
+                        fill="#0066ff8a"
                         stroke="#fff"
                         strokeWidth={2}
                         draggable
@@ -570,6 +850,18 @@ export default function Canvas() {
                           handleControlPointDragMoveWithAlignment(e, line.id, 0)
                         }
                         onDragEnd={handleControlPointDragEndWithAlignment}
+                        onMouseEnter={(e) => {
+                          const container = e.target.getStage()?.container();
+                          if (container) {
+                            container.style.cursor = "pointer";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          const container = e.target.getStage()?.container();
+                          if (container) {
+                            container.style.cursor = "default";
+                          }
+                        }}
                       />
 
                       {/* END POINT */}
@@ -577,7 +869,7 @@ export default function Canvas() {
                         x={x2}
                         y={y2}
                         radius={6}
-                        fill="#0066ff"
+                        fill="#0066ff8a"
                         stroke="#fff"
                         strokeWidth={2}
                         draggable
@@ -588,6 +880,18 @@ export default function Canvas() {
                           handleControlPointDragMoveWithAlignment(e, line.id, 2)
                         }
                         onDragEnd={handleControlPointDragEndWithAlignment}
+                        onMouseEnter={(e) => {
+                          const container = e.target.getStage()?.container();
+                          if (container) {
+                            container.style.cursor = "pointer";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          const container = e.target.getStage()?.container();
+                          if (container) {
+                            container.style.cursor = "default";
+                          }
+                        }}
                       />
                     </>
                   )}
@@ -614,7 +918,9 @@ export default function Canvas() {
               <React.Fragment key={shape.id}>
                 {renderShape({
                   shape,
-                  draggable: true,
+                  draggable:
+                    !isPenSelected &&
+                    (!isSelectClicked || selectedIds.includes(shape.id)),
                   loadedImages,
                   selectedShapeId,
                   glbInteractionModes,
