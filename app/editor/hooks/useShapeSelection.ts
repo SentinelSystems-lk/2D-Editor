@@ -16,11 +16,19 @@ export function useShapeSelection(
 
     // ✅ MULTI-SELECTION MODE
     if (selectedIds && selectedIds.length > 0) {
-      const nodes = selectedIds
+      // ✅ FILTER OUT LINES - Only attach transformer to shapes
+      const shapeNodes = selectedIds
+        .filter((id) => shapes.some((s) => s.id === id)) // Only include shape IDs
         .map((id) => shapeRefs.current.get(id))
         .filter((node): node is Konva.Node => node !== undefined);
       
-      transformer.nodes(nodes);
+      // If we have shape nodes, attach transformer
+      if (shapeNodes.length > 0) {
+        transformer.nodes(shapeNodes);
+      } else {
+        // If only lines are selected, detach transformer
+        transformer.nodes([]);
+      }
       transformer.getLayer()?.batchDraw();
       return;
     }
