@@ -69,6 +69,17 @@ export type TextShape = BaseShape & {
   align?: string;
 };
 
+export type GroupShape = {
+  id: string;
+  type: "group";
+  x: number;
+  y: number;
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
+  childIds: string[]; // Track which shapes/lines belong to this group
+};
+
 export type Shape =
   | RectangleShape
   | CircleShape
@@ -76,7 +87,9 @@ export type Shape =
   | GLBShape
   | TextShape
   | TriangleShape
-  | PolygonShape;
+  | PolygonShape
+  | GroupShape;
+
 
 
 
@@ -90,23 +103,11 @@ export type LineType = {
   opacity?: number;
 };
 
-export type GroupType = {
-  id: string;
-  name?: string;
-  childIds: string[]; // IDs of shapes and lines in this group
-  x: number;
-  y: number;
-  rotation?: number;
-  scaleX?: number;
-  scaleY?: number;
-};
-
 // History Type
 
 type HistoryState = {
   shapes: Shape[];
   lines: LineType[];
-  groups: GroupType[];
 };
 
 // Store Type
@@ -130,11 +131,7 @@ type CanvasStore = {
   alignToYAxis: (id: string) => void;
 
   // Groups
-  groups: GroupType[];
-  addGroup: (group: GroupType) => void;
-  updateGroup: (id: string, updates: Partial<GroupType>) => void;
-  deleteGroup: (id: string) => void;
-  ungroupItems: (groupId: string) => void;
+  
 
   // Selection
   selectedShapeId: string | null;
@@ -254,7 +251,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   saveToHistory: () => {
     const state = get();
     const currentHistory = state.history.slice(0, state.historyStep + 1);
-    const newHistory = [...currentHistory, { shapes: [...state.shapes] , lines: [...state.lines], groups: [...state.groups]}];
+    const newHistory = [...currentHistory, { shapes: [...state.shapes] , lines: [...state.lines]}];
 
     set({
       history: newHistory,
@@ -401,34 +398,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   isGroup: false,
   setGroup: (group) => set({ isGroup: group }),
 
-  groups: [],
-
-  addGroup: (group) =>
-    set((state) => ({
-      groups: [...state.groups, group],
-    })),
-    
-  updateGroup: (id, updates) =>
-    set((state) => ({
-      groups: state.groups.map((g) =>
-        g.id === id ? { ...g, ...updates } : g
-      ),
-    })),
-    
-  deleteGroup: (id) =>
-    set((state) => ({
-      groups: state.groups.filter((g) => g.id !== id),
-    })),
-    
-  ungroupItems: (groupId) =>
-    set((state) => {
-      const group = state.groups.find((g) => g.id === groupId);
-      if (!group) return state;
-      
-      // Remove group but keep the items
-      return {
-        groups: state.groups.filter((g) => g.id !== groupId),
-      };
-    }),
+  
 
 }));
