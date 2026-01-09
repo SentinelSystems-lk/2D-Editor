@@ -1,7 +1,7 @@
 // import React from 'react';
 import { useCanvasStore } from "../store/editorStore";
 import { GLBRenderer } from "./GLBRender";
-import type { GLBShape } from "../store/editorStore";
+import type { GLBShape, GroupShape } from "../store/editorStore";
 import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { SketchPicker, ColorResult } from "react-color";
 import { color } from "three/tsl";
@@ -18,6 +18,9 @@ function PropertiesPanel() {
 
   const selectedShape = shapes.find((s) => s.id === selectedShapeId);
   const selectedLine = lines.find((s) => s.id === selectedLineId);
+
+  const isGroup = (shape: typeof selectedShape): shape is GroupShape =>
+    Boolean(shape) && (shape as any).type === "group";
 
   const [showFillPicker, setShowFillPicker] = useState(false);
   const fillPickerRef = useRef<HTMLDivElement>(null);
@@ -478,56 +481,60 @@ function PropertiesPanel() {
           </div>
         )}
 
-        <div className="mb-4">
-          <h3 className="titles">
-            {selectedShape.type === "text" ? "Text" : "Fill"} Color
-          </h3>
+        {selectedShape.type !== "group" && (
+          <div className="mb-4">
+            <h3 className="titles">
+              {selectedShape.type === "text" ? "Text" : "Fill"} Color
+            </h3>
 
-          {/* Color Button */}
-          <button
-            onClick={() => setShowFillPicker(!showFillPicker)}
-            style={{
-              backgroundColor: selectedShape.fill || "#3b82f6",
-            }}
-            className="colorbtn"
-          />
-
-          {/* Color Picker */}
-          {showFillPicker && (
-            <div
-              ref={fillPickerRef}
+            {/* Color Button */}
+            <button
+              onClick={() => setShowFillPicker(!showFillPicker)}
               style={{
-                position: "absolute",
-                zIndex: 100,
-                marginTop: "8px",
+                backgroundColor: selectedShape.fill || "#3b82f6",
               }}
-            >
-              <SketchPicker
-                width="11vw"
-                color={{
-                  r: hexToRgb(selectedShape.fill || "#3b82f6").r,
-                  g: hexToRgb(selectedShape.fill || "#3b82f6").g,
-                  b: hexToRgb(selectedShape.fill || "#3b82f6").b,
-                  a: selectedShape.opacity ?? 1,
+              className="colorbtn"
+            />
+
+            {/* Color Picker */}
+            {showFillPicker && (
+              <div
+                ref={fillPickerRef}
+                style={{
+                  position: "absolute",
+                  zIndex: 100,
+                  marginTop: "8px",
                 }}
-                onChange={handleFillColorChange}
+              >
+                <SketchPicker
+                  width="11vw"
+                  color={{
+                    r: hexToRgb(selectedShape.fill || "#3b82f6").r,
+                    g: hexToRgb(selectedShape.fill || "#3b82f6").g,
+                    b: hexToRgb(selectedShape.fill || "#3b82f6").b,
+                    a: selectedShape.opacity ?? 1,
+                  }}
+                  onChange={handleFillColorChange}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedShape.type !== "group" && (
+          <div>
+            <h3 className="titles">Stoke</h3>
+            <div>
+              <label className="subtitles">Width:</label>
+              <input
+                type="number"
+                value={Math.round(selectedShape.strokeWidth || 0)}
+                onChange={(e) => handleStokeWidth(parseFloat(e.target.value))}
+                className="input-box"
               />
             </div>
-          )}
-        </div>
-
-        <div>
-          <h3 className="titles">Stoke</h3>
-          <div>
-            <label className="subtitles">Width:</label>
-            <input
-              type="number"
-              value={Math.round(selectedShape.strokeWidth || 0)}
-              onChange={(e) => handleStokeWidth(parseFloat(e.target.value))}
-              className="input-box"
-            />
           </div>
-        </div>
+        )}
 
         {/* Actions */}
         <div className="deletecon">

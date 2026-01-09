@@ -30,7 +30,7 @@ export const renderShape = ({
   handleDragEnd,
   updateShapeInStore,
 }: RenderShapeProps) => {
-  const commonProps = {
+  const baseProps: any = {
     id: shape.id,
     x: shape.x,
     y: shape.y,
@@ -43,12 +43,6 @@ export const renderShape = ({
         shape.type === "glb" &&
         glbInteractionModes.get(shape.id) === "threejs"
       ),
-    fill: shape.fill || "#3b82f6",
-    stroke: shape.stroke || "#000000ff",
-    strokeWidth: shape.strokeWidth || 0,
-    opacity: shape.opacity ?? 1,
-    
-
     onClick: () => {
       if (!isPenSelected) {
         setSelectedShapeId(shape.id);
@@ -77,6 +71,17 @@ export const renderShape = ({
       }
     },
   };
+
+  // Only add paint-related props for non-group shapes so TypeScript
+  // doesn't allow accessing paint properties on GroupShape.
+  if (shape.type !== "group") {
+    baseProps.fill = shape.fill || "#3b82f6";
+    baseProps.stroke = shape.stroke || "#000000ff";
+    baseProps.strokeWidth = shape.strokeWidth || 0;
+    baseProps.opacity = shape.opacity ?? 1;
+  }
+
+  const commonProps = baseProps as any;
 
   if (shape.type === "rectangle") {
     return (
