@@ -12,6 +12,7 @@ function ShapeDropdown() {
   const{isDisjointMode, setDisjointMode} = useCanvasStore();
   const{isLineSelected, setLineSelected} = useCanvasStore();
   const{selectedLineId, setSelectedLineId} = useCanvasStore();
+  const{isGroup, setGroup} = useCanvasStore();
   
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setPenSelected(false);
@@ -46,6 +47,8 @@ function ShapeDropdown() {
   }
 
   function handleGroup(){
+    setGroup(!isGroup);
+    console.log(isGroup);
 
   }
 
@@ -90,7 +93,7 @@ function ShapeDropdown() {
             setSelectedShapeType("text");
             setSelectClick(false);
           }}
-        >
+          >
           Text
         </button>
       </div>
@@ -98,7 +101,7 @@ function ShapeDropdown() {
       <div>
         <button
          onClick={handleLine}
-        >
+         >
           Line
         </button>
       </div>
@@ -106,7 +109,7 @@ function ShapeDropdown() {
         <button
         onClick ={handleGroup}
         >
-          Group
+          {isGroup ? "Ungroup" : "Group"}
         </button>
       </div>
       <p className="text-xs text-gray-500 mt-1">

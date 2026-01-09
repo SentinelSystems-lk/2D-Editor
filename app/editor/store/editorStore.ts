@@ -69,6 +69,17 @@ export type TextShape = BaseShape & {
   align?: string;
 };
 
+export type GroupShape = {
+  id: string;
+  type: "group";
+  x: number;
+  y: number;
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
+  childIds: string[]; // Track which shapes/lines belong to this group
+};
+
 export type Shape =
   | RectangleShape
   | CircleShape
@@ -76,7 +87,9 @@ export type Shape =
   | GLBShape
   | TextShape
   | TriangleShape
-  | PolygonShape;
+  | PolygonShape
+  | GroupShape;
+
 
 
 
@@ -117,6 +130,9 @@ type CanvasStore = {
   alignLineToXAxis: (id: string) => void;
   alignToYAxis: (id: string) => void;
 
+  // Groups
+  
+
   // Selection
   selectedShapeId: string | null;
   setSelectedShapeId: (id: string | null) => void;
@@ -156,6 +172,9 @@ type CanvasStore = {
 
   isDisjointMode: boolean;
   setDisjointMode: (mode: boolean) => void;
+
+  isGroup: boolean;
+  setGroup: (group: boolean) => void;
 
   clearCurrentShape: () => void;
   clearCurrentLine: () => void;
@@ -223,7 +242,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   clearCurrentLine: () => set({ currentLine: null, isDrawing: false }),
 
   // History
-  history: [{ shapes: [] , lines: []}],
+  history: [{ shapes: [] , lines: [], groups: []}],
   historyStep: 0,
   canUndo: false,
   canRedo: false,
@@ -375,5 +394,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }));
     get().saveToHistory();
   },
+
+  isGroup: false,
+  setGroup: (group) => set({ isGroup: group }),
+
+  
 
 }));
